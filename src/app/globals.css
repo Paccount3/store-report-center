@@ -1,0 +1,43 @@
+@import "tailwindcss";
+
+@theme {
+  --color-navy: #06284a;
+  --color-blue: #0c5eae;
+  --color-sky: #e7f1fa;
+  --color-ice: #f3f7fb;
+  --color-line: #d5e3ef;
+  --color-ink: #142433;
+  --color-muted: #5c6d7e;
+  --color-good: #0d7a4b;
+  --color-bad: #b42318;
+  --color-warn: #8a5a00;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  background: var(--color-ice);
+  color: var(--color-ink);
+}
+
+button,
+a,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+::selection {
+  background: #cfe3f7;
+}
+
+.store-switcher,
+.store-switcher option {
+  color: var(--color-ink);
+  background-color: #fff;
+  color-scheme: light;
+}

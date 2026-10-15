@@ -1,0 +1,15 @@
+node_modules
+.next
+out
+*.tsbuildinfo
+.env
+.env.local
+.env*.local
+data/*.sqlite
+data/*.sqlite-*
+data/uploads
+.DS_Store
+.vercel
+*.log
+.turbo
+

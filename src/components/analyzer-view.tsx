@@ -176,14 +176,28 @@ export function AnalyzerView() {
               placeholder="Which departments have declined, and is labor moving with revenue?"
               className="mt-1 w-full rounded-md border border-line px-3 py-2"
             />
-            <button type="button" onClick={run} disabled={busy || selected.length === 0} className="mt-3 rounded-md bg-blue px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">
+            <button
+              type="button"
+              onClick={run}
+              disabled={busy || selected.length === 0}
+              className="mt-3 inline-flex items-center gap-2 rounded-md bg-blue px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+            >
+              {busy ? <span className="analyzer-spinner" aria-hidden /> : null}
               {busy ? "Analyzing…" : "Run analysis"}
             </button>
           </div>
 
-          {error ? <p className="rounded-md border border-bad/20 bg-white px-4 py-3 text-sm text-bad">{error}</p> : null}
+          {busy ? (
+            <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-line bg-white px-6 py-16" role="status" aria-live="polite">
+              <span className="analyzer-spinner analyzer-spinner-lg" aria-hidden />
+              <p className="text-sm font-medium text-ink">Running analysis…</p>
+              <p className="text-sm text-muted">Calculating figures and writing the store narrative.</p>
+            </div>
+          ) : null}
 
-          {result ? (
+          {error && !busy ? <p className="rounded-md border border-bad/20 bg-white px-4 py-3 text-sm text-bad">{error}</p> : null}
+
+          {result && !busy ? (
             <div className="space-y-4">
               <div className="flex flex-wrap gap-2">
                 <button type="button" onClick={copyWriteUp} className="rounded-md border border-line bg-white px-4 py-2 text-sm font-semibold">

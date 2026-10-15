@@ -7,11 +7,12 @@ export const dynamic = "force-dynamic";
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await context.params;
-    if (!getStore(id)) return fail("Store not found.", 404);
+    const existing = getStore(id);
+    if (!existing) return fail("Store not found.", 404);
     const body = await readJson(request);
     const record = body && typeof body === "object" ? (body as Record<string, unknown>) : {};
     const squareFeet = "squareFeet" in record ? parseFeet(record.squareFeet) : undefined;
-    const store = updateStore(id, {
+    const store = updateStore(existing.id, {
       name: typeof record.name === "string" ? record.name : undefined,
       code: typeof record.code === "string" ? record.code : undefined,
       city: typeof record.city === "string" ? record.city : undefined,
@@ -28,8 +29,9 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
 
 export async function DELETE(_request: Request, context: { params: Promise<{ id: string }> }) {
   const { id } = await context.params;
-  if (!getStore(id)) return fail("Store not found.", 404);
-  deleteStore(id);
+  const existing = getStore(id);
+  if (!existing) return fail("Store not found.", 404);
+  deleteStore(existing.id);
   return json({ ok: true });
 }
 

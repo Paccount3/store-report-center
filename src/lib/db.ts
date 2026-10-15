@@ -1,4 +1,5 @@
 import { DEMO_READONLY_MESSAGE, demoStore, demoStores } from "./demo/snapshot";
+import { matchesStoreRef } from "./store-path";
 import type { Store } from "./types";
 
 export function dataDir() {
@@ -9,8 +10,10 @@ export function listStores(): Store[] {
   return demoStores();
 }
 
-export function getStore(id: string) {
-  return demoStore(id);
+/** Resolve a store by UUID or URL slug (store name). */
+export function getStore(idOrSlug: string) {
+  if (!idOrSlug) return null;
+  return demoStore(idOrSlug) ?? listStores().find((store) => matchesStoreRef(store, idOrSlug)) ?? null;
 }
 
 export function createStore(_input: {

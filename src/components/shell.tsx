@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { matchesStoreRef, storePath, storeSlug } from "@/lib/store-path";
 import type { Store } from "@/lib/types";
 import { api } from "./api";
 
@@ -35,14 +36,14 @@ export function Shell({ children }: { children: React.ReactNode }) {
     setOpen(false);
   }, [pathname]);
 
-  const routeStoreId = pathname.match(/^\/stores\/([^/]+)/)?.[1] ?? "";
-  const current = stores.find((store) => store.id === routeStoreId) ?? stores[0];
+  const routeStoreRef = pathname.match(/^\/stores\/([^/]+)/)?.[1] ?? "";
+  const current = stores.find((store) => matchesStoreRef(store, routeStoreRef)) ?? stores[0];
   const section = pathname.includes("/reports") ? "reports" : pathname.includes("/analyzer") ? "analyzer" : "dashboard";
 
-  function storeHref(storeId: string) {
-    if (section === "reports") return `/stores/${storeId}/reports`;
-    if (section === "analyzer") return `/stores/${storeId}/analyzer`;
-    return `/stores/${storeId}`;
+  function storeHref(store: Store) {
+    if (section === "reports") return storePath(store, "/reports");
+    if (section === "analyzer") return storePath(store, "/analyzer");
+    return storePath(store);
   }
 
   const value = useMemo(() => ({ stores, refreshStores }), [stores]);
@@ -73,14 +74,15 @@ export function Shell({ children }: { children: React.ReactNode }) {
             <select
               id="store-switcher"
               className="store-switcher mt-1 w-full rounded-md border border-line bg-white px-2 py-2 text-sm text-ink outline-none"
-              value={current?.id ?? ""}
+              value={current ? storeSlug(current) : ""}
               onChange={(event) => {
-                if (event.target.value) window.location.href = storeHref(event.target.value);
+                const next = stores.find((store) => storeSlug(store) === event.target.value);
+                if (next) window.location.href = storeHref(next);
               }}
             >
               {stores.length === 0 ? <option value="">No stores yet</option> : null}
               {stores.map((store) => (
-                <option key={store.id} value={store.id}>
+                <option key={store.id} value={storeSlug(store)}>
                   {store.name} ({store.code})
                 </option>
               ))}
@@ -96,9 +98,9 @@ export function Shell({ children }: { children: React.ReactNode }) {
                 {current.name} · Store {current.code}
               </p>
             ) : null}
-            <Nav href={current ? `/stores/${current.id}` : "/stores"} label="Performance" active={Boolean(routeStoreId) && section === "dashboard"} />
-            <Nav href={current ? `/stores/${current.id}/reports` : "/stores"} label="Report Sources" active={section === "reports"} />
-            <Nav href={current ? `/stores/${current.id}/analyzer` : "/stores"} label="AI Analyzer" active={section === "analyzer"} />
+            <Nav href={current ? storePath(current) : "/stores"} label="Performance" active={Boolean(routeStoreRef) && section === "dashboard"} />
+            <Nav href={current ? storePath(current, "/reports") : "/stores"} label="Report Sources" active={section === "reports"} />
+            <Nav href={current ? storePath(current, "/analyzer") : "/stores"} label="AI Analyzer" active={section === "analyzer"} />
           </nav>
           <p className="px-5 py-4 text-xs leading-5 text-sky-100/70">Prototype. Not connected to Celerant, ADP, or other live systems.</p>
         </aside>

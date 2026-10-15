@@ -41,3 +41,27 @@ textarea {
   background-color: #fff;
   color-scheme: light;
 }
+
+.analyzer-spinner {
+  display: inline-block;
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid rgb(255 255 255 / 0.35);
+  border-top-color: #fff;
+  border-radius: 9999px;
+  animation: analyzer-spin 0.7s linear infinite;
+}
+
+.analyzer-spinner-lg {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-width: 3px;
+  border-color: var(--color-line);
+  border-top-color: var(--color-blue);
+}
+
+@keyframes analyzer-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

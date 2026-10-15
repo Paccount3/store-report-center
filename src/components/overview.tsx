@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { categoryName } from "@/lib/catalog";
 import { formatCurrency, formatWhen } from "@/lib/format";
+import { storePath } from "@/lib/store-path";
 import type { OverviewCard } from "@/lib/types";
 import { api } from "./api";
 import { useShell } from "./shell";
@@ -49,7 +50,7 @@ export function Overview() {
       {loading ? <p className="mt-8 text-muted">Loading stores…</p> : null}
       <div className="mt-6 grid gap-4 md:grid-cols-2">
         {cards.map((card) => (
-          <Link key={card.store.id} href={`/stores/${card.store.id}`} className="rounded-xl border border-line bg-white p-5 shadow-sm transition hover:border-blue">
+          <Link key={card.store.id} href={storePath(card.store)} className="rounded-xl border border-line bg-white p-5 shadow-sm transition hover:border-blue">
             <div>
               <p className="text-xs font-semibold uppercase tracking-wider text-muted">Store {card.store.code}</p>
               <h2 className="text-xl font-semibold">{card.store.name}</h2>

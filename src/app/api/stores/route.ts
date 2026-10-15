@@ -4,8 +4,13 @@ import { fail, json, readJson } from "@/lib/http";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export function GET() {
-  return json({ stores: listStores() });
+export async function GET() {
+  try {
+    return json({ stores: await listStores() });
+  } catch (error) {
+    console.error(error);
+    return fail(error instanceof Error ? error.message : "Could not load stores.", 500);
+  }
 }
 
 export async function POST(request: Request) {
@@ -15,7 +20,7 @@ export async function POST(request: Request) {
     const code = stringField(body, "code");
     if (!name || !code) return fail("Store name and code are required.");
     if (name.length > 80 || code.length > 20) return fail("Store name or code is too long.");
-    const store = createStore({
+    const store = await createStore({
       name,
       code,
       city: stringField(body, "city"),

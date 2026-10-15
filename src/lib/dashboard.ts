@@ -1,7 +1,8 @@
 import { CATEGORIES, categoryName, metricLabel } from "./catalog";
 import { formatMonth, formatRange, monthEnd, monthKey, shiftDays, shiftYears, weekStart } from "./dates";
-import { getDb, listStores } from "./db";
+import { listStores } from "./db";
 import { formatCurrency, formatNumber, formatPercent, formatSignedPercent } from "./format";
+import { sqlAll } from "./sql";
 import type { Attention, Coverage, DashboardData, Kpi, OverviewCard, Store } from "./types";
 import { listUploads } from "./uploads";
 
@@ -32,10 +33,10 @@ const GRAIN_RANK: Record<string, number> = {
   period: 6,
 };
 
-export function buildDashboard(store: Store, options: Options = {}): DashboardData {
-  const uploads = listUploads(store.id).filter((upload) => !upload.isDemo && (!options.uploadIds || options.uploadIds.includes(upload.id)));
+export async function buildDashboard(store: Store, options: Options = {}): Promise<DashboardData> {
+  const uploads = (await listUploads(store.id)).filter((upload) => !upload.isDemo && (!options.uploadIds || options.uploadIds.includes(upload.id)));
   const imported = uploads.filter((upload) => upload.status === "imported");
-  const allRows = loadGrouped(store.id, options.uploadIds);
+  const allRows = await loadGrouped(store.id, options.uploadIds);
   const months = [...new Set(allRows.map((row) => (row.period_date ? monthKey(row.period_date) : "")).filter(Boolean))].sort();
   const filtered = applyFinest(allRows.filter((row) => inRange(row, options.from, options.to)));
   const prior = priorYear(allRows, options.from, options.to);
@@ -448,11 +449,13 @@ export function buildDashboard(store: Store, options: Options = {}): DashboardDa
   };
 }
 
-export function getOverview(): OverviewCard[] {
-  return listStores().map((store) => {
-    const dashboard = buildDashboard(store);
+export async function getOverview(): Promise<OverviewCard[]> {
+  const stores = await listStores();
+  const cards: OverviewCard[] = [];
+  for (const store of stores) {
+    const dashboard = await buildDashboard(store);
     const revenue = dashboard.kpis.find((kpi) => kpi.id === "revenue");
-    return {
+    cards.push({
       store,
       revenue: revenue?.value ?? null,
       rangeLabel: dashboard.rangeLabel,
@@ -461,11 +464,12 @@ export function getOverview(): OverviewCard[] {
       hasData: dashboard.freshness.hasData,
       coverage: dashboard.coverage.map((item) => ({ category: item.category, ready: item.imported > 0 })),
       spark: dashboard.revenueSeries.slice(-36).map((point) => point.revenue),
-    };
-  });
+    });
+  }
+  return cards;
 }
 
-function buildCoverage(uploads: ReturnType<typeof listUploads>): Coverage[] {
+function buildCoverage(uploads: Awaited<ReturnType<typeof listUploads>>): Coverage[] {
   return CATEGORIES.map((category) => {
     const rows = uploads.filter((upload) => upload.category === category.id);
     const imported = rows.filter((upload) => upload.status === "imported");
@@ -860,7 +864,7 @@ function versusLastYear(current: number, prior: number | null, label: string | n
   };
 }
 
-function overlapNotices(uploads: ReturnType<typeof listUploads>) {
+function overlapNotices(uploads: Awaited<ReturnType<typeof listUploads>>) {
   const notices: string[] = [];
   const groups = new Map<string, typeof uploads>();
   for (const upload of uploads) {
@@ -888,7 +892,7 @@ function overlapNotices(uploads: ReturnType<typeof listUploads>) {
   return notices;
 }
 
-function sharesMetric(a: ReturnType<typeof listUploads>[number], b: ReturnType<typeof listUploads>[number]) {
+function sharesMetric(a: Awaited<ReturnType<typeof listUploads>>[number], b: Awaited<ReturnType<typeof listUploads>>[number]) {
   const left = metricKeys(a);
   for (const key of metricKeys(b)) {
     if (left.has(key)) return true;
@@ -896,7 +900,7 @@ function sharesMetric(a: ReturnType<typeof listUploads>[number], b: ReturnType<t
   return false;
 }
 
-function metricKeys(upload: ReturnType<typeof listUploads>[number]) {
+function metricKeys(upload: Awaited<ReturnType<typeof listUploads>>[number]) {
   const keys = new Set<string>();
   for (const sheet of upload.mapping?.sheets ?? []) {
     if (!sheet.include) continue;
@@ -905,7 +909,7 @@ function metricKeys(upload: ReturnType<typeof listUploads>[number]) {
   return keys;
 }
 
-function loadGrouped(storeId: string, uploadIds?: string[]) {
+async function loadGrouped(storeId: string, uploadIds?: string[]) {
   if (uploadIds && uploadIds.length === 0) return [];
   const params: (string | number)[] = [storeId];
   let uploadClause = "";
@@ -934,7 +938,7 @@ function loadGrouped(storeId: string, uploadIds?: string[]) {
     WHERE rn = 1
     GROUP BY category, metric, comparison, period_date, hour, dim1, grain
   `;
-  const rows = getDb().prepare(sql).all(...params) as Record<string, unknown>[];
+  const rows = await sqlAll<Record<string, unknown>>(sql, ...params);
   return rows.map((row) => ({
     category: String(row.category),
     metric: String(row.metric),

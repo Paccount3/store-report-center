@@ -8,6 +8,7 @@
     "start": "next start"
   },
   "dependencies": {
+    "@libsql/client": "^0.18.0",
     "jspdf": "^4.2.1",
     "next": "^15.5.4",
     "openai": "^4.104.0",

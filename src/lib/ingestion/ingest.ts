@@ -1,13 +1,19 @@
 import crypto from "crypto";
-import fs from "fs";
-import path from "path";
 import type { CategoryId } from "../catalog";
-import { dataDir, getStore } from "../db";
+import { getStore } from "../db";
 import type { PublicUpload, WorkbookMapping } from "../types";
-import { deleteUpload, findImportedDuplicate, findPendingDuplicate, getUpload, insertUpload, updateUpload } from "../uploads";
+import {
+  deleteUpload,
+  findImportedDuplicate,
+  findPendingDuplicate,
+  getUpload,
+  insertUpload,
+  readUploadBytes,
+  saveUploadBytes,
+  updateUpload,
+} from "../uploads";
 import { writeObservations } from "./commit";
-import { suggestSheet } from "./mapping";
-import { cleanHeader } from "./mapping";
+import { suggestSheet, cleanHeader } from "./mapping";
 import { parseNumber } from "../numbers";
 import { parseWorkbook, type ParsedSheet } from "./parse";
 
@@ -36,11 +42,11 @@ const AUTO_CONFIDENCE = 0.75;
  * Charts read normalized observations, so a new connector does not need dashboard changes.
  */
 export async function ingestInbound(storeId: string, report: InboundReport): Promise<IngestResult> {
-  const store = getStore(storeId);
+  const store = await getStore(storeId);
   if (!store) return { upload: null, imported: false, warnings: [], error: "Store not found." };
 
   const hash = crypto.createHash("sha256").update(report.bytes).digest("hex");
-  const duplicate = findImportedDuplicate(storeId, hash);
+  const duplicate = await findImportedDuplicate(storeId, hash);
   if (duplicate) {
     return {
       upload: null,
@@ -50,7 +56,7 @@ export async function ingestInbound(storeId: string, report: InboundReport): Pro
       error: `This file was already imported as “${duplicate.original_name}”. It was not counted again.`,
     };
   }
-  const pending = findPendingDuplicate(storeId, hash);
+  const pending = await findPendingDuplicate(storeId, hash);
   if (pending) {
     return {
       upload: pending,
@@ -88,35 +94,10 @@ export async function ingestInbound(storeId: string, report: InboundReport): Pro
   const warnings = mapping.sheets.flatMap((sheet) => sheet.notes.map((note) => `${sheet.name}: ${note}`));
   const confident = mapping.sheets.some((sheet) => sheet.include && sheet.confidence >= AUTO_CONFIDENCE);
   const uploadId = crypto.randomUUID();
-  const storedPath = saveFile(storeId, uploadId, report.filename, report.bytes);
+  const storedPath = await saveUploadBytes(storeId, uploadId, report.filename, report.bytes);
   const preview = previewOf(sheets);
 
-  if (report.forceReview || !confident) {
-    insertUpload({
-      id: uploadId,
-      storeId,
-      category: report.category,
-      originalName: report.filename,
-      storedPath,
-      mime: report.mime ?? null,
-      sizeBytes: report.bytes.length,
-      sha256: hash,
-      status: "pending_review",
-      isDemo: Boolean(report.isDemo),
-      source: report.source,
-      warnings,
-      mapping,
-      preview,
-      sheetCount: sheets.length,
-    });
-    return {
-      upload: getUpload(uploadId)!.public,
-      imported: false,
-      warnings,
-    };
-  }
-
-  insertUpload({
+  await insertUpload({
     id: uploadId,
     storeId,
     category: report.category,
@@ -134,34 +115,42 @@ export async function ingestInbound(storeId: string, report: InboundReport): Pro
     sheetCount: sheets.length,
   });
 
+  if (report.forceReview || !confident) {
+    return {
+      upload: (await getUpload(uploadId))!.public,
+      imported: false,
+      warnings,
+    };
+  }
+
   return finalize(uploadId, sheets, mapping, warnings);
 }
 
 export async function commitUpload(uploadId: string, mapping: WorkbookMapping) {
-  const found = getUpload(uploadId);
+  const found = await getUpload(uploadId);
   if (!found) return { upload: null, imported: false, warnings: [], error: "Upload not found." };
   if (found.public.status === "imported") {
     return { upload: found.public, imported: true, warnings: found.public.warnings, error: "This file is already imported." };
   }
-  const store = getStore(found.public.storeId);
+  const store = await getStore(found.public.storeId);
   if (!store) return { upload: null, imported: false, warnings: [], error: "Store not found." };
-  const bytes = fs.readFileSync(found.row.stored_path);
+  const bytes = await readUploadBytes(found.row.stored_path);
   const sheets = (await parseWorkbook(bytes, found.public.originalName)).map((sheet) =>
     reshapeOther(sheet, found.public.category),
   );
   return finalize(uploadId, sheets, mapping, []);
 }
 
-function finalize(uploadId: string, sheets: ParsedSheet[], mapping: WorkbookMapping, warnings: string[]): IngestResult {
-  const found = getUpload(uploadId);
+async function finalize(uploadId: string, sheets: ParsedSheet[], mapping: WorkbookMapping, warnings: string[]): Promise<IngestResult> {
+  const found = await getUpload(uploadId);
   if (!found) return { upload: null, imported: false, warnings, error: "Upload not found." };
-  const store = getStore(found.public.storeId);
+  const store = await getStore(found.public.storeId);
   if (!store) return { upload: null, imported: false, warnings, error: "Store not found." };
 
-  const stats = writeObservations(store, uploadId, found.public.category, sheets, mapping.sheets);
+  const stats = await writeObservations(store, uploadId, found.public.category, sheets, mapping.sheets);
   const allWarnings = [...warnings, ...stats.warnings];
   if (!stats.observations) {
-    updateUpload(uploadId, {
+    await updateUpload(uploadId, {
       status: "failed",
       warnings: [...allWarnings, "No rows were imported with this mapping."],
       mapping,
@@ -172,7 +161,7 @@ function finalize(uploadId: string, sheets: ParsedSheet[], mapping: WorkbookMapp
       importedAt: null,
     });
     return {
-      upload: getUpload(uploadId)!.public,
+      upload: (await getUpload(uploadId))!.public,
       imported: false,
       warnings: allWarnings,
       error: stats.rowsSkipped
@@ -182,7 +171,7 @@ function finalize(uploadId: string, sheets: ParsedSheet[], mapping: WorkbookMapp
   }
 
   const importedAt = new Date().toISOString();
-  updateUpload(uploadId, {
+  await updateUpload(uploadId, {
     status: "imported",
     warnings: allWarnings,
     mapping,
@@ -192,13 +181,13 @@ function finalize(uploadId: string, sheets: ParsedSheet[], mapping: WorkbookMapp
     periodEnd: stats.periodEnd,
     importedAt,
   });
-  return { upload: getUpload(uploadId)!.public, imported: true, warnings: allWarnings };
+  return { upload: (await getUpload(uploadId))!.public, imported: true, warnings: allWarnings };
 }
 
 async function retainFailure(storeId: string, report: InboundReport, hash: string, message: string) {
   const uploadId = crypto.randomUUID();
-  const storedPath = saveFile(storeId, uploadId, report.filename, report.bytes);
-  insertUpload({
+  const storedPath = await saveUploadBytes(storeId, uploadId, report.filename, report.bytes);
+  await insertUpload({
     id: uploadId,
     storeId,
     category: report.category,
@@ -214,16 +203,7 @@ async function retainFailure(storeId: string, report: InboundReport, hash: strin
     mapping: null,
     preview: null,
   });
-  return getUpload(uploadId)!.public;
-}
-
-function saveFile(storeId: string, uploadId: string, filename: string, bytes: Buffer) {
-  const safe = path.basename(filename).replace(/[^\w.\- ()#]+/g, "_");
-  const dir = path.join(dataDir(), "uploads", storeId);
-  fs.mkdirSync(dir, { recursive: true });
-  const stored = path.join(dir, `${uploadId}-${safe || "upload"}`);
-  fs.writeFileSync(stored, bytes);
-  return stored;
+  return (await getUpload(uploadId))!.public;
 }
 
 function previewOf(sheets: ParsedSheet[]) {
@@ -266,6 +246,6 @@ function stringify(value: unknown) {
   return String(value);
 }
 
-export function removeUpload(id: string) {
+export async function removeUpload(id: string) {
   return deleteUpload(id);
 }

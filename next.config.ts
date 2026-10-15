@@ -4,7 +4,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   outputFileTracingRoot: path.dirname(fileURLToPath(import.meta.url)),
-  serverExternalPackages: ["xlsx", "unpdf", "pdfjs-dist"],
+  serverExternalPackages: ["xlsx", "unpdf", "pdfjs-dist", "@libsql/client"],
 };
 
 export default nextConfig;

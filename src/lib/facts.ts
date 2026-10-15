@@ -5,9 +5,9 @@ import { formatCurrency, formatMetric, formatSignedPercent } from "./format";
 import type { AnalysisResult, DashboardData, Store } from "./types";
 import { uploadsForAnalysis } from "./uploads";
 
-export function buildAnalysisContext(store: Store, uploadIds: string[]) {
-  const reports = uploadsForAnalysis(store.id, uploadIds);
-  const dashboard = buildDashboard(store, { uploadIds });
+export async function buildAnalysisContext(store: Store, uploadIds: string[]) {
+  const reports = await uploadsForAnalysis(store.id, uploadIds);
+  const dashboard = await buildDashboard(store, { uploadIds });
   const calculated = calculatedLines(dashboard);
   const missing = dashboard.coverage.filter((item) => item.imported === 0).map((item) => categoryName(item.category));
   const pack = {

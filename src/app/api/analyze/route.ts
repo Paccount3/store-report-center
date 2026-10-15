@@ -17,12 +17,12 @@ export async function POST(request: Request) {
     const uploadIds = Array.isArray(record.uploadIds) ? record.uploadIds.filter((id): id is string => typeof id === "string") : [];
     const preset = typeof record.preset === "string" && isPreset(record.preset) ? record.preset : null;
     const question = typeof record.question === "string" ? record.question.trim().slice(0, 2000) : "";
-    const store = getStore(storeId);
+    const store = await getStore(storeId);
     if (!store) return fail("Store not found.", 404);
     if (!uploadIds.length) return fail("Select at least one imported report.");
     if (!preset && !question) return fail("Choose a preset or ask a question.");
 
-    const context = buildAnalysisContext(store, uploadIds);
+    const context = await buildAnalysisContext(store, uploadIds);
     if (context.reportsUsed.length !== uploadIds.length) {
       return fail("One or more selected reports are not imported for this store.");
     }

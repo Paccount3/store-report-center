@@ -13,10 +13,10 @@ const MAX_BYTES = 25 * 1024 * 1024;
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const storeId = url.searchParams.get("storeId") ?? "";
-  if (!getStore(storeId)) return fail("Store not found.", 404);
+  if (!(await getStore(storeId))) return fail("Store not found.", 404);
   const category = url.searchParams.get("category") ?? undefined;
   if (category && !isCategory(category)) return fail("Unknown report category.");
-  return json({ uploads: listUploads(storeId, category) });
+  return json({ uploads: await listUploads(storeId, category) });
 }
 
 export async function POST(request: Request) {
@@ -30,7 +30,7 @@ export async function POST(request: Request) {
   const category = String(form.get("category") ?? "");
   const forceReview = String(form.get("forceReview") ?? "") === "true";
   const file = form.get("file");
-  if (!getStore(storeId)) return fail("Store not found.", 404);
+  if (!(await getStore(storeId))) return fail("Store not found.", 404);
   if (!isCategory(category)) return fail("Choose a report category before uploading.");
   if (!(file instanceof File)) return fail("Choose a file to upload.");
   if (file.size > MAX_BYTES) return fail("Files need to be 25 MB or smaller.");

@@ -10,7 +10,7 @@ export const maxDuration = 120;
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await context.params;
-    const found = await getUpload(id);
+    const found = getUpload(id);
     if (!found) return fail("Upload not found.", 404);
     const body = await readJson(request);
     const available = found.public.preview?.sheets.map((sheet) => ({ name: sheet.name, headers: sheet.headers })) ?? [];

@@ -2,9 +2,16 @@
 
 Reporting and performance dashboards for Goodwill retail stores, plus an AI report analyzer.
 
-Stores are created on first launch (**Norwalk** / code **20**, **Waterbury** / code **210**). Add or rename stores from the store directory. Charts use imported files only.
+**This deployment is a read-only demo.** Norwalk (20) and Waterbury (210) plus the prototype Celerant reports are baked into the app, so the Vercel site works on any device without a database. Uploading new files or adding stores is disabled until a shared database is wired up later.
 
-Each store page is split by source: Celerant, ADP, Upright Labs, GW Work Place, Financial / P&L, and Other. Empty sources stay grey until a file is imported.
+Source report files in the repo:
+
+- `Report #1 Prototype Run.csv`
+- `Report #1 Prototype Run 2025.csv`
+- `Report #2 Prototype Run.csv.xlsx`
+- `Sq Ft.xlsx`
+
+Metrics shown in the UI come from `src/lib/demo/snapshot.json.gz` (exported from those files).
 
 ## Local setup
 
@@ -17,8 +24,6 @@ npm run dev
 
 Open http://localhost:3000.
 
-Locally, the app stores data in `data/command-center.sqlite` and `data/uploads` unless Turso env vars are set.
-
 ### OpenAI
 
 Put the key in `.env.local` (never commit this file):
@@ -30,53 +35,23 @@ OPENAI_MODEL=gpt-4o-mini
 
 Restart `npm run dev` after changing env values.
 
-### Workflow
+## Deploy on Vercel
 
-1. Open a store and upload a file into the matching source category.
-2. CSV, TSV, Excel (`.xlsx` / `.xls`), and text-based PDF tables are parsed.
-3. Map columns if the file needs review, then **Add to dashboard**.
-4. Open **AI Analyzer**, choose reports, run an analysis, then **Copy write-up** or **Download PDF**. Possible Action Steps are written for store managers and floor staff.
+1. Import [Paccount3/store-report-center](https://github.com/Paccount3/store-report-center).
+2. Framework preset: **Next.js**.
+3. Add `OPENAI_API_KEY` (optional, for AI Analyzer).
+4. Deploy — no database env vars are required for the demo.
 
-## Presenting on other devices (Vercel)
+## Refreshing the demo snapshot
 
-A phone, laptop, or meeting-room computer all open the **same hosted site**. They do **not** each need their own copy of the reports. Upload once on the hosted site; every device sees the same stores and numbers.
-
-Vercel cannot keep a local SQLite file. Use a free [Turso](https://turso.tech) database:
-
-1. Create a Turso account and a database.
-2. Copy the database URL and create an auth token.
-3. In the Vercel project → **Settings → Environment Variables**, add:
-   - `TURSO_DATABASE_URL` = your `libsql://...` URL
-   - `TURSO_AUTH_TOKEN` = the token
-   - `OPENAI_API_KEY` = your key (optional but needed for AI Analyzer)
-   - `OPENAI_MODEL` = `gpt-4o-mini` (optional)
-4. Redeploy the project (Deployments → … → Redeploy).
-5. Open the Vercel URL, confirm Norwalk and Waterbury appear, then upload the Celerant reports once.
-
-Uploaded report files are stored in Turso when those env vars are set, so they survive across devices and deploys.
-
-### GitHub repo
-
-Code lives at [Paccount3/store-report-center](https://github.com/Paccount3/store-report-center).
+If the local `data/command-center.sqlite` is updated from new imports:
 
 ```powershell
-cd C:\Users\shawn\Desktop\Goodwill\report-center
-git add .
-git commit -m "Describe your change"
-git push origin main
+node scripts/export-demo-snapshot.mjs
 ```
 
-Do **not** commit `.env.local`, SQLite databases, or uploaded report files.
+Commit the updated `src/lib/demo/snapshot.json.gz`.
 
-## Live feed later
+## Live database later
 
-Manual upload and any future connector should call `ingestInbound()` in `src/lib/ingestion/ingest.ts`.
-
-```ts
-await ingestInbound(storeId, {
-  filename: "celerant-export.csv",
-  bytes,
-  category: "celerant",
-  source: "automated",
-});
-```
+Manual upload and connectors should call `ingestInbound()` again once a shared database replaces the demo snapshot.

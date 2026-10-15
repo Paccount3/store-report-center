@@ -1,8 +1,8 @@
 import { CATEGORIES, categoryName, metricLabel } from "./catalog";
 import { formatMonth, formatRange, monthEnd, monthKey, shiftDays, shiftYears, weekStart } from "./dates";
 import { listStores } from "./db";
+import { demoGrouped } from "./demo/snapshot";
 import { formatCurrency, formatNumber, formatPercent, formatSignedPercent } from "./format";
-import { sqlAll } from "./sql";
 import type { Attention, Coverage, DashboardData, Kpi, OverviewCard, Store } from "./types";
 import { listUploads } from "./uploads";
 
@@ -33,10 +33,10 @@ const GRAIN_RANK: Record<string, number> = {
   period: 6,
 };
 
-export async function buildDashboard(store: Store, options: Options = {}): Promise<DashboardData> {
-  const uploads = (await listUploads(store.id)).filter((upload) => !upload.isDemo && (!options.uploadIds || options.uploadIds.includes(upload.id)));
+export function buildDashboard(store: Store, options: Options = {}): DashboardData {
+  const uploads = listUploads(store.id).filter((upload) => !upload.isDemo && (!options.uploadIds || options.uploadIds.includes(upload.id)));
   const imported = uploads.filter((upload) => upload.status === "imported");
-  const allRows = await loadGrouped(store.id, options.uploadIds);
+  const allRows = loadGrouped(store.id, options.uploadIds);
   const months = [...new Set(allRows.map((row) => (row.period_date ? monthKey(row.period_date) : "")).filter(Boolean))].sort();
   const filtered = applyFinest(allRows.filter((row) => inRange(row, options.from, options.to)));
   const prior = priorYear(allRows, options.from, options.to);
@@ -449,13 +449,11 @@ export async function buildDashboard(store: Store, options: Options = {}): Promi
   };
 }
 
-export async function getOverview(): Promise<OverviewCard[]> {
-  const stores = await listStores();
-  const cards: OverviewCard[] = [];
-  for (const store of stores) {
-    const dashboard = await buildDashboard(store);
+export function getOverview(): OverviewCard[] {
+  return listStores().map((store) => {
+    const dashboard = buildDashboard(store);
     const revenue = dashboard.kpis.find((kpi) => kpi.id === "revenue");
-    cards.push({
+    return {
       store,
       revenue: revenue?.value ?? null,
       rangeLabel: dashboard.rangeLabel,
@@ -464,12 +462,11 @@ export async function getOverview(): Promise<OverviewCard[]> {
       hasData: dashboard.freshness.hasData,
       coverage: dashboard.coverage.map((item) => ({ category: item.category, ready: item.imported > 0 })),
       spark: dashboard.revenueSeries.slice(-36).map((point) => point.revenue),
-    });
-  }
-  return cards;
+    };
+  });
 }
 
-function buildCoverage(uploads: Awaited<ReturnType<typeof listUploads>>): Coverage[] {
+function buildCoverage(uploads: ReturnType<typeof listUploads>): Coverage[] {
   return CATEGORIES.map((category) => {
     const rows = uploads.filter((upload) => upload.category === category.id);
     const imported = rows.filter((upload) => upload.status === "imported");
@@ -864,7 +861,7 @@ function versusLastYear(current: number, prior: number | null, label: string | n
   };
 }
 
-function overlapNotices(uploads: Awaited<ReturnType<typeof listUploads>>) {
+function overlapNotices(uploads: ReturnType<typeof listUploads>) {
   const notices: string[] = [];
   const groups = new Map<string, typeof uploads>();
   for (const upload of uploads) {
@@ -892,7 +889,7 @@ function overlapNotices(uploads: Awaited<ReturnType<typeof listUploads>>) {
   return notices;
 }
 
-function sharesMetric(a: Awaited<ReturnType<typeof listUploads>>[number], b: Awaited<ReturnType<typeof listUploads>>[number]) {
+function sharesMetric(a: ReturnType<typeof listUploads>[number], b: ReturnType<typeof listUploads>[number]) {
   const left = metricKeys(a);
   for (const key of metricKeys(b)) {
     if (left.has(key)) return true;
@@ -900,7 +897,7 @@ function sharesMetric(a: Awaited<ReturnType<typeof listUploads>>[number], b: Awa
   return false;
 }
 
-function metricKeys(upload: Awaited<ReturnType<typeof listUploads>>[number]) {
+function metricKeys(upload: ReturnType<typeof listUploads>[number]) {
   const keys = new Set<string>();
   for (const sheet of upload.mapping?.sheets ?? []) {
     if (!sheet.include) continue;
@@ -909,47 +906,8 @@ function metricKeys(upload: Awaited<ReturnType<typeof listUploads>>[number]) {
   return keys;
 }
 
-async function loadGrouped(storeId: string, uploadIds?: string[]) {
-  if (uploadIds && uploadIds.length === 0) return [];
-  const params: (string | number)[] = [storeId];
-  let uploadClause = "";
-  if (uploadIds?.length) {
-    uploadClause = ` AND o.upload_id IN (${uploadIds.map(() => "?").join(",")})`;
-    params.push(...uploadIds);
-  }
-  const sql = `
-    WITH ranked AS (
-      SELECT
-        o.category, o.metric, o.comparison, o.period_date, o.hour, o.dim1, o.dim2, o.grain, o.value,
-        u.is_demo, u.imported_at,
-        ROW_NUMBER() OVER (
-          PARTITION BY o.category, o.metric, o.comparison,
-            IFNULL(o.period_date, ''), IFNULL(o.hour, -1), o.dim1, o.dim2, o.grain
-          ORDER BY u.imported_at DESC, o.id DESC
-        ) AS rn
-      FROM observations o
-      JOIN uploads u ON u.id = o.upload_id
-      WHERE u.status = 'imported' AND u.is_demo = 0 AND o.store_id = ?
-      ${uploadClause}
-    )
-    SELECT category, metric, comparison, period_date, hour, dim1, grain,
-           SUM(value) AS value, MAX(is_demo) AS is_demo
-    FROM ranked
-    WHERE rn = 1
-    GROUP BY category, metric, comparison, period_date, hour, dim1, grain
-  `;
-  const rows = await sqlAll<Record<string, unknown>>(sql, ...params);
-  return rows.map((row) => ({
-    category: String(row.category),
-    metric: String(row.metric),
-    comparison: String(row.comparison),
-    period_date: row.period_date == null ? null : String(row.period_date),
-    hour: row.hour == null ? null : Number(row.hour),
-    dim1: String(row.dim1 ?? ""),
-    grain: String(row.grain),
-    value: Number(row.value),
-    is_demo: Number(row.is_demo),
-  })) satisfies GroupRow[];
+function loadGrouped(storeId: string, uploadIds?: string[]) {
+  return demoGrouped(storeId, uploadIds) satisfies GroupRow[];
 }
 
 function applyFinest(rows: GroupRow[]) {

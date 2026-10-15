@@ -5,7 +5,12 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export function GET() {
-  return json({ stores: listStores() });
+  try {
+    return json({ stores: listStores() });
+  } catch (error) {
+    console.error("GET /api/stores", error);
+    return fail(error instanceof Error ? error.message : "Could not load stores.", 500);
+  }
 }
 
 export async function POST(request: Request) {
@@ -25,7 +30,7 @@ export async function POST(request: Request) {
     return json({ store }, 201);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not create the store.";
-    const status = /UNIQUE/i.test(message) ? 409 : 400;
+    const status = /UNIQUE/i.test(message) ? 409 : /read-only demo/i.test(message) ? 403 : 400;
     return fail(status === 409 ? "A store with that code already exists." : message, status);
   }
 }

@@ -1,8 +1,6 @@
-import fs from "fs";
-import path from "path";
 import zlib from "zlib";
-import { fileURLToPath } from "url";
 import { isCategory } from "../catalog";
+import { SNAPSHOT_GZ_BASE64 } from "./snapshot-data";
 import type { PublicUpload, SheetPreview, Store, UploadStatus, WorkbookMapping } from "../types";
 
 export type DemoGroupRow = {
@@ -75,8 +73,9 @@ const globalForDemo = globalThis as unknown as { __gwDemoSnapshot?: Snapshot };
 
 function loadSnapshot(): Snapshot {
   if (globalForDemo.__gwDemoSnapshot) return globalForDemo.__gwDemoSnapshot;
-  const dir = path.dirname(fileURLToPath(import.meta.url));
-  const gz = fs.readFileSync(path.join(dir, "snapshot.json.gz"));
+  // Embedded base64 so Vercel serverless bundles always include the demo data
+  // (adjacent .gz files are often omitted from the function filesystem).
+  const gz = Buffer.from(SNAPSHOT_GZ_BASE64, "base64");
   const json = zlib.gunzipSync(gz).toString("utf8");
   const parsed = JSON.parse(json) as Snapshot;
   globalForDemo.__gwDemoSnapshot = parsed;

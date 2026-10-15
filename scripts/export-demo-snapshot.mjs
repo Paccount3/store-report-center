@@ -63,6 +63,13 @@ fs.mkdirSync(outDir, { recursive: true });
 const outFile = path.join(outDir, "snapshot.json.gz");
 fs.writeFileSync(outFile, gz);
 
+const { spawnSync } = await import("child_process");
+const embed = spawnSync(process.execPath, [path.join(root, "scripts", "embed-demo-snapshot.mjs")], {
+  cwd: root,
+  stdio: "inherit",
+});
+if (embed.status !== 0) process.exit(embed.status ?? 1);
+
 console.log({
   stores: stores.length,
   uploads: slimUploads.length,

@@ -35,6 +35,11 @@ export function buildAnalysisContext(store: Store, uploadIds: string[]) {
       name: item.name,
       revenue: round(item.revenue),
       units: round(item.units),
+      topDescriptions: item.descriptions.slice(0, 8).map((line) => ({
+        name: line.name,
+        revenue: round(line.revenue),
+        units: round(line.units),
+      })),
     })),
     hourlyRevenue: dashboard.hours.map((item) => ({ hour: item.hour, revenue: round(item.revenue) })),
     laborByWeek: dashboard.labor.map((item) => ({

@@ -9,7 +9,7 @@ const db = new DatabaseSync(path.join(root, "data", "command-center.sqlite"), { 
 const stores = db.prepare("SELECT * FROM stores").all();
 const uploads = db.prepare("SELECT * FROM uploads WHERE status = 'imported' AND is_demo = 0").all();
 
-// Keep upload_id so the analyzer can filter to selected reports.
+// Main dashboard facts — department totals stay on dim1; description detail is separate.
 const grouped = db.prepare(`
   WITH ranked AS (
     SELECT
@@ -30,6 +30,19 @@ const grouped = db.prepare(`
   WHERE rn = 1
   GROUP BY store_id, upload_id, category, metric, comparison, period_date, hour, dim1, grain
 `).all();
+
+// Celerant description breakdown for department drill-down (date + department + description).
+const descriptions = db
+  .prepare(
+    `SELECT o.store_id, o.upload_id, o.metric, o.comparison, o.period_date, o.dim1, o.dim2, SUM(o.value) AS value
+     FROM observations o
+     JOIN uploads u ON u.id = o.upload_id
+     WHERE u.status = 'imported' AND u.is_demo = 0 AND o.category = 'celerant'
+       AND o.metric IN ('revenue', 'units') AND o.comparison = 'actual'
+       AND o.dim1 != '' AND o.dim2 != ''
+     GROUP BY o.store_id, o.upload_id, o.metric, o.comparison, o.period_date, o.dim1, o.dim2`,
+  )
+  .all();
 
 const slimUploads = uploads.map((u) => ({
   id: u.id,
@@ -54,7 +67,7 @@ const slimUploads = uploads.map((u) => ({
   imported_at: u.imported_at,
 }));
 
-const payload = { stores, uploads: slimUploads, grouped };
+const payload = { stores, uploads: slimUploads, grouped, descriptions };
 const json = JSON.stringify(payload);
 const gz = zlib.gzipSync(Buffer.from(json), { level: 9 });
 
@@ -74,6 +87,7 @@ console.log({
   stores: stores.length,
   uploads: slimUploads.length,
   grouped: grouped.length,
+  descriptions: descriptions.length,
   jsonMB: Number((json.length / 1024 / 1024).toFixed(2)),
   gzipMB: Number((gz.length / 1024 / 1024).toFixed(2)),
   outFile,

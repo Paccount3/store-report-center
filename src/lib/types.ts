@@ -113,7 +113,12 @@ export type DashboardData = {
   attention: Attention[];
   revenueSeries: { date: string; revenue: number; budget: number | null; lastYear: number | null }[];
   revenueGrain: "day" | "month" | "none";
-  departments: { name: string; revenue: number; units: number }[];
+  departments: {
+    name: string;
+    revenue: number;
+    units: number;
+    descriptions: { name: string; revenue: number; units: number }[];
+  }[];
   hours: { hour: number; revenue: number; units: number; transactions: number }[];
   scorecard: {
     id: string;

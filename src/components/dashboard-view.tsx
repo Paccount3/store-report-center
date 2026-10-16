@@ -160,7 +160,7 @@ export function DashboardView() {
             </Panel>
             <Panel
               title="Departments"
-              detail="Revenue by department"
+              detail="Revenue by department — expand a row for the Description1 item breakdown"
               nested
               open={opened("celerant-departments", true)}
               onToggle={() => toggle("celerant-departments", true)}

@@ -63,10 +63,22 @@ type DemoGroupedRow = {
   is_demo: number;
 };
 
+export type DemoDescriptionRow = {
+  store_id: string;
+  upload_id: string;
+  metric: string;
+  comparison: string;
+  period_date: string | null;
+  dim1: string;
+  dim2: string;
+  value: number;
+};
+
 type Snapshot = {
   stores: DemoStoreRow[];
   uploads: DemoUploadRow[];
   grouped: DemoGroupedRow[];
+  descriptions?: DemoDescriptionRow[];
 };
 
 const globalForDemo = globalThis as unknown as { __gwDemoSnapshot?: Snapshot };
@@ -179,6 +191,49 @@ export function demoGrouped(storeId: string, uploadIds?: string[]): DemoGroupRow
     });
   }
 
+  return [...sums.values()];
+}
+
+/** Celerant department → description lines for drill-down. */
+export function demoDescriptions(storeId: string, uploadIds?: string[]): DemoDescriptionRow[] {
+  if (uploadIds && uploadIds.length === 0) return [];
+  const snapshot = loadSnapshot();
+  const importedAt = new Map(snapshot.uploads.map((upload) => [upload.id, upload.imported_at ?? upload.uploaded_at]));
+  const wanted = uploadIds?.length ? new Set(uploadIds) : null;
+  const candidates = (snapshot.descriptions ?? []).filter(
+    (row) => row.store_id === storeId && (!wanted || wanted.has(row.upload_id)),
+  );
+
+  const best = new Map<string, { importedAt: string; uploadId: string }>();
+  for (const row of candidates) {
+    const key = [row.metric, row.comparison, row.period_date ?? "", row.dim1, row.dim2].join("|");
+    const stamp = importedAt.get(row.upload_id) ?? "";
+    const current = best.get(key);
+    if (!current || stamp > current.importedAt) {
+      best.set(key, { importedAt: stamp, uploadId: row.upload_id });
+    }
+  }
+
+  const sums = new Map<string, DemoDescriptionRow>();
+  for (const row of candidates) {
+    const key = [row.metric, row.comparison, row.period_date ?? "", row.dim1, row.dim2].join("|");
+    if (best.get(key)?.uploadId !== row.upload_id) continue;
+    const existing = sums.get(key);
+    if (existing) {
+      existing.value += Number(row.value);
+      continue;
+    }
+    sums.set(key, {
+      store_id: row.store_id,
+      upload_id: row.upload_id,
+      metric: String(row.metric),
+      comparison: String(row.comparison),
+      period_date: row.period_date == null ? null : String(row.period_date),
+      dim1: String(row.dim1 ?? ""),
+      dim2: String(row.dim2 ?? ""),
+      value: Number(row.value),
+    });
+  }
   return [...sums.values()];
 }
 

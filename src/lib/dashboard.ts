@@ -1,7 +1,7 @@
 import { CATEGORIES, categoryName, metricLabel } from "./catalog";
 import { formatMonth, formatRange, monthEnd, monthKey, shiftDays, shiftYears, weekStart } from "./dates";
 import { listStores } from "./db";
-import { demoGrouped } from "./demo/snapshot";
+import { demoDescriptions, demoGrouped } from "./demo/snapshot";
 import { formatCurrency, formatNumber, formatPercent, formatSignedPercent } from "./format";
 import type { Attention, Coverage, DashboardData, Kpi, OverviewCard, Store } from "./types";
 import { listUploads } from "./uploads";
@@ -64,7 +64,24 @@ export function buildDashboard(store: Store, options: Options = {}): DashboardDa
     period_date: row.period_date ? shiftYears(row.period_date, 1) : null,
   }));
   const revenueSeries = buildRevenueSeries(revenueRows, budgetRows, lastYearRows.length ? lastYearRows : alignedPriorRevenue);
-  const departments = buildDepartments(filtered, revenueRows[0]?.category);
+  const descriptionRows = demoDescriptions(store.id, options.uploadIds).filter((row) =>
+    inRange(
+      {
+        category: "celerant",
+        metric: row.metric,
+        comparison: row.comparison,
+        period_date: row.period_date,
+        hour: null,
+        dim1: row.dim1,
+        grain: "detail",
+        value: row.value,
+        is_demo: 0,
+      },
+      options.from,
+      options.to,
+    ),
+  );
+  const departments = buildDepartments(filtered, revenueRows[0]?.category, descriptionRows);
   const labor = buildLabor(filtered, revenueRows);
   const payrollRows = pick(filtered, "payroll_dollars", "actual", ["adp", "financial", "other"]);
   const hourRows = pick(filtered, "payroll_hours", "actual", ["adp", "other"]);
@@ -572,7 +589,11 @@ function buildRevenueSeries(actual: GroupRow[], budget: GroupRow[], lastYear: Gr
   return { points, grain: grain as "day" | "month" | "none" };
 }
 
-function buildDepartments(rows: GroupRow[], category?: string) {
+function buildDepartments(
+  rows: GroupRow[],
+  category?: string,
+  descriptionRows: { metric: string; dim1: string; dim2: string; value: number }[] = [],
+) {
   const source = rows.filter(
     (row) => row.metric === "revenue" && row.comparison === "actual" && row.dim1 && (!category || row.category === category),
   );
@@ -581,11 +602,15 @@ function buildDepartments(rows: GroupRow[], category?: string) {
   );
   const names = [...new Set(source.map((row) => row.dim1))];
   const ranked = names
-    .map((name) => ({
-      name,
-      revenue: sum(source.filter((row) => row.dim1 === name)),
-      units: sum(units.filter((row) => row.dim1 === name)),
-    }))
+    .map((name) => {
+      const descriptions = buildDescriptionBreakdown(descriptionRows, name);
+      return {
+        name,
+        revenue: sum(source.filter((row) => row.dim1 === name)),
+        units: sum(units.filter((row) => row.dim1 === name)),
+        descriptions,
+      };
+    })
     .sort((a, b) => b.revenue - a.revenue);
   if (ranked.length <= 8) return ranked;
   const top = ranked.slice(0, 8);
@@ -594,8 +619,40 @@ function buildDepartments(rows: GroupRow[], category?: string) {
     name: "Other departments",
     revenue: rest.reduce((total, item) => total + item.revenue, 0),
     units: rest.reduce((total, item) => total + item.units, 0),
+    descriptions: rest.flatMap((item) =>
+      item.descriptions.length
+        ? item.descriptions.map((line) => ({ ...line, name: `${item.name} · ${line.name}` }))
+        : [{ name: item.name, revenue: item.revenue, units: item.units }],
+    ),
   });
   return top;
+}
+
+function buildDescriptionBreakdown(
+  rows: { metric: string; dim1: string; dim2: string; value: number }[],
+  department: string,
+) {
+  const revenue = rows.filter((row) => row.metric === "revenue" && row.dim1 === department && row.dim2);
+  const units = rows.filter((row) => row.metric === "units" && row.dim1 === department && row.dim2);
+  const names = [...new Set(revenue.map((row) => row.dim2))];
+  return names
+    .map((name) => ({
+      name: shortenDescription(name, department),
+      revenue: revenue.filter((row) => row.dim2 === name).reduce((total, row) => total + row.value, 0),
+      units: units.filter((row) => row.dim2 === name).reduce((total, row) => total + row.value, 0),
+    }))
+    .sort((a, b) => b.revenue - a.revenue);
+}
+
+/** Drop the repeated department prefix from Celerant description labels when present. */
+function shortenDescription(description: string, department: string) {
+  const trimmed = description.trim();
+  const prefix = `${department} - `;
+  if (trimmed.toUpperCase().startsWith(prefix.toUpperCase())) {
+    return trimmed.slice(prefix.length).trim() || trimmed;
+  }
+  if (trimmed.toUpperCase() === department.toUpperCase()) return trimmed;
+  return trimmed;
 }
 
 function buildHours(revenueRows: GroupRow[], unitRows: GroupRow[], transactionRows: GroupRow[]) {

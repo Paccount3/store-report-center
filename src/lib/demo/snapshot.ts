@@ -94,17 +94,21 @@ function loadSnapshot(): Snapshot {
   return parsed;
 }
 
+const DEMO_STORE_CODE = "210";
+
 export function demoStores(): Store[] {
-  return loadSnapshot().stores.map((row) => ({
-    id: row.id,
-    name: row.name,
-    code: row.code,
-    city: row.city,
-    region: row.region,
-    squareFeet: row.square_feet == null ? null : Number(row.square_feet),
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  }));
+  return loadSnapshot()
+    .stores.filter((row) => String(row.code) === DEMO_STORE_CODE)
+    .map((row) => ({
+      id: row.id,
+      name: row.name,
+      code: row.code,
+      city: row.city,
+      region: row.region,
+      squareFeet: row.square_feet == null ? null : Number(row.square_feet),
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    }));
 }
 
 export function demoStore(id: string) {

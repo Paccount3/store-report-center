@@ -13,7 +13,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { formatDay } from "@/lib/dates";
+import { formatDay, formatMonth } from "@/lib/dates";
 import { formatCurrency, formatHour, formatNumber, formatPercent } from "@/lib/format";
 import type { DashboardData } from "@/lib/types";
 
@@ -132,6 +132,7 @@ export function HourChart({ data }: { data: DashboardData["hours"] }) {
   const rows = data.map((point) => ({ ...point, label: formatHour(point.hour) }));
   const hasUnits = data.some((point) => point.units > 0);
   const hasTransactions = data.some((point) => point.transactions > 0);
+  const hasReceipts = data.some((point) => point.receipts > 0);
   return (
     <div className="h-64">
       <ResponsiveContainer width="100%" height="100%">
@@ -139,7 +140,7 @@ export function HourChart({ data }: { data: DashboardData["hours"] }) {
           <CartesianGrid stroke="#e6eef6" vertical={false} />
           <XAxis dataKey="label" tick={axis} />
           <YAxis yAxisId="left" tick={axis} tickFormatter={(value) => formatCurrency(Number(value))} width={72} />
-          {hasUnits || hasTransactions ? <YAxis yAxisId="right" orientation="right" tick={axis} width={48} /> : null}
+          {hasUnits || hasTransactions || hasReceipts ? <YAxis yAxisId="right" orientation="right" tick={axis} width={48} /> : null}
           <Tooltip
             formatter={(value, name) => {
               if (name === "Revenue") return [formatCurrency(Number(value ?? 0)), name];
@@ -150,6 +151,7 @@ export function HourChart({ data }: { data: DashboardData["hours"] }) {
           <Bar yAxisId="left" dataKey="revenue" name="Revenue" fill="#1d74c7" radius={[4, 4, 0, 0]} />
           {hasUnits ? <Line yAxisId="right" type="monotone" dataKey="units" name="Units" stroke="#06284a" dot={false} /> : null}
           {hasTransactions ? <Line yAxisId="right" type="monotone" dataKey="transactions" name="Transactions" stroke="#7aa6d4" dot={false} /> : null}
+          {!hasTransactions && hasReceipts ? <Line yAxisId="right" type="monotone" dataKey="receipts" name="Receipt lines" stroke="#7aa6d4" dot={false} /> : null}
         </ComposedChart>
       </ResponsiveContainer>
     </div>
@@ -198,6 +200,48 @@ export function EcommerceChart({ data }: { data: DashboardData["ecommerce"] }) {
           <Legend />
           <Line type="monotone" dataKey="revenue" name="Ecommerce revenue" stroke="#0c5eae" dot={false} />
           <Line type="monotone" dataKey="goal" name="Goal" stroke="#7aa6d4" strokeDasharray="5 4" dot={false} />
+        </ComposedChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+export function DonorChart({ data }: { data: DashboardData["donorRows"] }) {
+  const rows = data.map((point) => ({ ...point, label: formatDay(point.date, false) }));
+  return (
+    <div className="h-72">
+      <ResponsiveContainer width="100%" height="100%">
+        <ComposedChart data={rows}>
+          <CartesianGrid stroke="#e6eef6" vertical={false} />
+          <XAxis dataKey="label" tick={axis} minTickGap={24} />
+          <YAxis tick={axis} width={48} />
+          <Tooltip formatter={(value) => [formatNumber(Number(value ?? 0)), "Donors"]} />
+          <Line type="monotone" dataKey="donors" name="Donors" stroke="#0c5eae" strokeWidth={2} dot={false} />
+        </ComposedChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+export function EcommSalesChart({ data }: { data: DashboardData["ecommRows"] }) {
+  const rows = data.map((point) => ({ ...point, label: formatMonth(point.month) }));
+  return (
+    <div className="h-72">
+      <ResponsiveContainer width="100%" height="100%">
+        <ComposedChart data={rows}>
+          <CartesianGrid stroke="#e6eef6" vertical={false} />
+          <XAxis dataKey="label" tick={axis} />
+          <YAxis yAxisId="left" tick={axis} tickFormatter={(value) => formatCurrency(Number(value))} width={72} />
+          <YAxis yAxisId="right" orientation="right" tick={axis} width={48} />
+          <Tooltip
+            formatter={(value, name) => {
+              if (name === "Item revenue") return [formatCurrency(Number(value ?? 0), 2), name];
+              return [formatNumber(Number(value ?? 0)), name];
+            }}
+          />
+          <Legend />
+          <Bar yAxisId="left" dataKey="totalItemRevenue" name="Item revenue" fill="#0c5eae" radius={[4, 4, 0, 0]} />
+          <Line yAxisId="right" type="monotone" dataKey="totalItemsSold" name="Items sold" stroke="#06284a" dot />
         </ComposedChart>
       </ResponsiveContainer>
     </div>

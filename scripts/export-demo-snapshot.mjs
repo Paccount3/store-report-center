@@ -6,8 +6,14 @@ import { DatabaseSync } from "node:sqlite";
 const root = path.resolve(import.meta.dirname, "..");
 const db = new DatabaseSync(path.join(root, "data", "command-center.sqlite"), { readOnly: true });
 
-const stores = db.prepare("SELECT * FROM stores").all();
-const uploads = db.prepare("SELECT * FROM uploads WHERE status = 'imported' AND is_demo = 0").all();
+// Demo is Waterbury only until the store experience is ready to copy to other locations.
+const stores = db.prepare("SELECT * FROM stores WHERE code = '210'").all();
+const storeIds = stores.map((store) => store.id);
+if (!storeIds.length) throw new Error("Waterbury (code 210) was not found in the local database.");
+const idList = storeIds.map(() => "?").join(", ");
+const uploads = db
+  .prepare(`SELECT * FROM uploads WHERE status = 'imported' AND is_demo = 0 AND store_id IN (${idList})`)
+  .all(...storeIds);
 
 // Main dashboard facts — department totals stay on dim1; description detail is separate.
 const grouped = db.prepare(`
@@ -22,14 +28,14 @@ const grouped = db.prepare(`
       ) AS rn
     FROM observations o
     JOIN uploads u ON u.id = o.upload_id
-    WHERE u.status = 'imported' AND u.is_demo = 0
+    WHERE u.status = 'imported' AND u.is_demo = 0 AND o.store_id IN (${idList})
   )
   SELECT store_id, upload_id, category, metric, comparison, period_date, hour, dim1, grain,
          SUM(value) AS value, MAX(is_demo) AS is_demo
   FROM ranked
   WHERE rn = 1
   GROUP BY store_id, upload_id, category, metric, comparison, period_date, hour, dim1, grain
-`).all();
+`).all(...storeIds);
 
 // Celerant description breakdown for department drill-down (date + department + description).
 const descriptions = db
@@ -38,11 +44,12 @@ const descriptions = db
      FROM observations o
      JOIN uploads u ON u.id = o.upload_id
      WHERE u.status = 'imported' AND u.is_demo = 0 AND o.category = 'celerant'
+       AND o.store_id IN (${idList})
        AND o.metric IN ('revenue', 'units') AND o.comparison = 'actual'
        AND o.dim1 != '' AND o.dim2 != ''
      GROUP BY o.store_id, o.upload_id, o.metric, o.comparison, o.period_date, o.dim1, o.dim2`,
   )
-  .all();
+  .all(...storeIds);
 
 const slimUploads = uploads.map((u) => ({
   id: u.id,

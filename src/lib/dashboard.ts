@@ -1,6 +1,7 @@
 import { CATEGORIES, categoryName, metricLabel } from "./catalog";
 import { formatMonth, formatRange, monthEnd, monthKey, shiftDays, shiftYears, weekStart } from "./dates";
 import { listStores } from "./db";
+import { waterburyDonors, waterburyEcomm } from "./waterbury-reports";
 import { demoDescriptions, demoGrouped } from "./demo/snapshot";
 import { formatCurrency, formatNumber, formatPercent, formatSignedPercent } from "./format";
 import type { Attention, Coverage, DashboardData, Kpi, OverviewCard, Store } from "./types";
@@ -22,6 +23,7 @@ type Options = {
   from?: string | null;
   to?: string | null;
   uploadIds?: string[];
+  keepAllDepartments?: boolean;
 };
 
 const GRAIN_RANK: Record<string, number> = {
@@ -81,7 +83,8 @@ export function buildDashboard(store: Store, options: Options = {}): DashboardDa
       options.to,
     ),
   );
-  const departments = buildDepartments(filtered, revenueRows[0]?.category, descriptionRows);
+  const departmentList = buildDepartments(filtered, revenueRows[0]?.category, descriptionRows);
+  const departments = options.keepAllDepartments ? departmentList : collapseDepartments(departmentList);
   const labor = buildLabor(filtered, revenueRows);
   const payrollRows = pick(filtered, "payroll_dollars", "actual", ["adp", "financial", "other"]);
   const hourRows = pick(filtered, "payroll_hours", "actual", ["adp", "other"]);
@@ -395,6 +398,7 @@ export function buildDashboard(store: Store, options: Options = {}): DashboardDa
   }
 
   const dates = filtered.map((row) => row.period_date).filter((date): date is string => Boolean(date)).sort();
+  const importedDates = allRows.map((row) => row.period_date).filter((date): date is string => Boolean(date)).sort();
   const rangeLabel = dates.length ? formatRange(dates[0], dates[dates.length - 1]) : "No dated rows";
   const attention = buildAttention({
     revenue,
@@ -423,8 +427,8 @@ export function buildDashboard(store: Store, options: Options = {}): DashboardDa
         if (!latest || upload.importedAt > latest) return upload.importedAt;
         return latest;
       }, null),
-      periodStart: dates[0] ?? null,
-      periodEnd: dates[dates.length - 1] ?? null,
+      periodStart: importedDates[0] ?? null,
+      periodEnd: importedDates[importedDates.length - 1] ?? null,
       demoShare,
     },
     coverage: buildCoverage(uploads),
@@ -434,7 +438,7 @@ export function buildDashboard(store: Store, options: Options = {}): DashboardDa
     revenueSeries: revenueSeries.points,
     revenueGrain: revenueSeries.grain,
     departments,
-    hours: buildHours(revenueRows, unitRows, transactionRows),
+    hours: buildHours(revenueRows, unitRows, transactionRows, receiptRows),
     labor: labor.periods,
     laborDepartments: labor.departments,
     ecommerce: buildEcommerce(filtered),
@@ -462,6 +466,8 @@ export function buildDashboard(store: Store, options: Options = {}): DashboardDa
     production: buildProduction(filtered),
     financial: buildFinancial(filtered),
     otherMetrics: buildOther(filtered),
+    donorRows: waterburyDonors(store.code, options.from, options.to),
+    ecommRows: waterburyEcomm(store.code, options.from, options.to),
     monthsTable: buildMonths(filtered, revenueRows, unitRows, roundupRows, roundupCountRows, employeeReceiptRows, priorRoundupRows, priorRoundupCountRows, priorReceiptRows, payrollRows, expenseRows, netRows, store.squareFeet),
   };
 }
@@ -612,6 +618,10 @@ function buildDepartments(
       };
     })
     .sort((a, b) => b.revenue - a.revenue);
+  return ranked;
+}
+
+function collapseDepartments(ranked: ReturnType<typeof buildDepartments>) {
   if (ranked.length <= 8) return ranked;
   const top = ranked.slice(0, 8);
   const rest = ranked.slice(8);
@@ -655,13 +665,14 @@ function shortenDescription(description: string, department: string) {
   return trimmed;
 }
 
-function buildHours(revenueRows: GroupRow[], unitRows: GroupRow[], transactionRows: GroupRow[]) {
-  const hours = [...new Set([...revenueRows, ...unitRows, ...transactionRows].map((row) => row.hour).filter((hour): hour is number => hour != null))].sort((a, b) => a - b);
+function buildHours(revenueRows: GroupRow[], unitRows: GroupRow[], transactionRows: GroupRow[], receiptRows: GroupRow[]) {
+  const hours = [...new Set([...revenueRows, ...unitRows, ...transactionRows, ...receiptRows].map((row) => row.hour).filter((hour): hour is number => hour != null))].sort((a, b) => a - b);
   return hours.map((hour) => ({
     hour,
     revenue: sum(revenueRows.filter((row) => row.hour === hour)),
     units: sum(unitRows.filter((row) => row.hour === hour)),
     transactions: sum(transactionRows.filter((row) => row.hour === hour)),
+    receipts: sum(receiptRows.filter((row) => row.hour === hour)),
   }));
 }
 

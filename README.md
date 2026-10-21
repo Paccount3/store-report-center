@@ -2,7 +2,7 @@
 
 Reporting and performance dashboards for Goodwill retail stores, plus an AI report analyzer.
 
-**This deployment is a read-only demo.** Norwalk (20) and Waterbury (210) plus the prototype Celerant reports are baked into the app, so the Vercel site works on any device without a database. Uploading new files or adding stores is disabled until a shared database is wired up later.
+**This deployment is a read-only Waterbury demo.** Store 210 and the prototype Celerant reports are baked into the app, so the Vercel site works on any device without a database. Other stores, including Norwalk, are left out until this dashboard is ready to copy. Uploading new files or adding stores is disabled until a shared database is wired up later.
 
 Source report files in the repo:
 

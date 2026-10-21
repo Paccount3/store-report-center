@@ -4,11 +4,12 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { categoryName } from "@/lib/catalog";
-import { monthBounds } from "@/lib/dates";
+import { formatDay, formatMonth, shiftDays } from "@/lib/dates";
 import { formatCurrency, formatMetric, formatPercent, formatSignedPercent, formatWhen } from "@/lib/format";
 import type { DashboardData, Kpi } from "@/lib/types";
 import { api } from "./api";
-import { DepartmentChart, EcommerceChart, HourChart, LaborChart, ProductionChart, RevenueChart } from "./charts";
+import { DepartmentChart, DonorChart, EcommSalesChart, EcommerceChart, HourChart, LaborChart, ProductionChart, RevenueChart } from "./charts";
+import { DiscussChat } from "./discuss-chat";
 
 export function DashboardView() {
   const params = useParams<{ storeId: string }>();
@@ -18,6 +19,7 @@ export function DashboardView() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [sections, setSections] = useState<Record<string, boolean>>({});
+  const [discuss, setDiscuss] = useState<string | null>(null);
 
   useEffect(() => {
     try {
@@ -96,18 +98,8 @@ export function DashboardView() {
         </div>
       </div>
 
-      <div className="mt-4 flex flex-wrap gap-2">
-        <FilterChip active={!filter.from} onClick={() => setFilter({ from: "", to: "" })} label="All imported" />
-        {yearsOf(data).map((year) => {
-          const bounds = { from: `${year}-01-01`, to: `${year}-12-31` };
-          const active = filter.from === bounds.from && filter.to === bounds.to;
-          return <FilterChip key={year} active={active} label={`${year} year`} onClick={() => setFilter(bounds)} />;
-        })}
-        {data.months.map((month) => {
-          const bounds = monthBounds(month.id);
-          const active = filter.from === bounds.from && filter.to === bounds.to;
-          return <FilterChip key={month.id} active={active} label={month.label} onClick={() => setFilter(bounds)} />;
-        })}
+      <DateRangeControl filter={filter} data={data} onChange={setFilter} />
+      <div className="mt-3 flex flex-wrap gap-2">
         <button type="button" onClick={() => setAll(true)} className="rounded-full border border-line bg-white px-3 py-1 text-sm">
           Show all
         </button>
@@ -123,6 +115,7 @@ export function DashboardView() {
         detail="Each figure is calculated from its own source."
         open={opened("scorecard", true)}
         onToggle={() => toggle("scorecard", true)}
+        onDiscuss={() => setDiscuss("scorecard")}
       >
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {data.scorecard.map((item) => (
@@ -145,6 +138,7 @@ export function DashboardView() {
           coverage={coverageFor(data, "celerant")}
           open={opened("celerant", true)}
           onToggle={() => toggle("celerant", true)}
+          onDiscuss={() => setDiscuss("celerant")}
         >
           <KpiGrid kpis={kpisFor(data, CELERANT_KPIS)} />
           <AttentionList items={data.attention.filter((item) => /budget|last year|second half|revenue/i.test(item.title) && !/labor|ecommerce|round-up/i.test(item.title))} />
@@ -155,6 +149,7 @@ export function DashboardView() {
               nested
               open={opened("celerant-revenue", true)}
               onToggle={() => toggle("celerant-revenue", true)}
+              onDiscuss={() => setDiscuss("celerant-revenue")}
             >
               {data.revenueSeries.length ? <RevenueChart data={data.revenueSeries} /> : <Empty>No dated revenue rows in this period.</Empty>}
             </Panel>
@@ -164,15 +159,17 @@ export function DashboardView() {
               nested
               open={opened("celerant-departments", true)}
               onToggle={() => toggle("celerant-departments", true)}
+              onDiscuss={() => setDiscuss("celerant-departments")}
             >
               {data.departments.length ? <DepartmentChart data={data.departments} /> : <Empty>No department column in this period.</Empty>}
             </Panel>
             <Panel
               title="Hour of day"
-              detail="Revenue, units, and transactions by receipt hour"
+              detail="Revenue, units, and receipt lines by hour. A receipt is counted on each department row."
               nested
               open={opened("celerant-hour", true)}
               onToggle={() => toggle("celerant-hour", true)}
+              onDiscuss={() => setDiscuss("celerant-hour")}
             >
               {data.hours.length ? <HourChart data={data.hours} /> : <Empty>No hourly rows in this period.</Empty>}
             </Panel>
@@ -182,6 +179,7 @@ export function DashboardView() {
               nested
               open={opened("celerant-months", true)}
               onToggle={() => toggle("celerant-months", true)}
+              onDiscuss={() => setDiscuss("celerant-months")}
             >
               {data.monthsTable.some((month) => month.revenue != null) ? (
                 <div className="overflow-x-auto">
@@ -216,8 +214,29 @@ export function DashboardView() {
               nested
               open={opened("celerant-roundup", true)}
               onToggle={() => toggle("celerant-roundup", true)}
+              onDiscuss={() => setDiscuss("celerant-roundup")}
             >
               <RoundupReport data={data} />
+            </Panel>
+            <Panel
+              title="Donors"
+              detail="Donations brought into the store by visitors. Every day from Waterbury Donors.csv."
+              nested
+              open={opened("celerant-donors", true)}
+              onToggle={() => toggle("celerant-donors", true)}
+              onDiscuss={() => setDiscuss("celerant-donors")}
+            >
+              {data.donorRows.length ? <DonorReport rows={data.donorRows} /> : <Empty>No donor rows in this period.</Empty>}
+            </Panel>
+            <Panel
+              title="Ecommerce sales"
+              detail="Celerant ecommerce by month. Kept separate from store revenue. Every column from the monthly files."
+              nested
+              open={opened("celerant-ecomm", true)}
+              onToggle={() => toggle("celerant-ecomm", true)}
+              onDiscuss={() => setDiscuss("celerant-ecomm")}
+            >
+              {data.ecommRows.length ? <EcommReport rows={data.ecommRows} /> : <Empty>No ecommerce rows in this period.</Empty>}
             </Panel>
           </div>
         </SourceBlock>
@@ -228,6 +247,7 @@ export function DashboardView() {
           coverage={coverageFor(data, "adp")}
           open={opened("adp", coverageFor(data, "adp").imported > 0)}
           onToggle={() => toggle("adp", coverageFor(data, "adp").imported > 0)}
+          onDiscuss={() => setDiscuss("adp")}
         >
           <KpiGrid kpis={kpisFor(data, ADP_KPIS)} />
           <AttentionList items={data.attention.filter((item) => /labor/i.test(item.title))} />
@@ -239,6 +259,7 @@ export function DashboardView() {
                 nested
                 open={opened("adp-labor", true)}
                 onToggle={() => toggle("adp-labor", true)}
+                onDiscuss={() => setDiscuss("adp-labor")}
               >
               <LaborChart data={data.labor} />
               {data.laborDepartments.length > 1 ? (
@@ -262,6 +283,7 @@ export function DashboardView() {
           coverage={coverageFor(data, "upright")}
           open={opened("upright", coverageFor(data, "upright").imported > 0)}
           onToggle={() => toggle("upright", coverageFor(data, "upright").imported > 0)}
+          onDiscuss={() => setDiscuss("upright")}
         >
           <KpiGrid kpis={kpisFor(data, UPRIGHT_KPIS)} />
           <AttentionList items={data.attention.filter((item) => /ecommerce/i.test(item.title))} />
@@ -273,6 +295,7 @@ export function DashboardView() {
                 nested
                 open={opened("upright-chart", true)}
                 onToggle={() => toggle("upright-chart", true)}
+                onDiscuss={() => setDiscuss("upright-chart")}
               >
                 <EcommerceChart data={data.ecommerce} />
               </Panel>
@@ -286,6 +309,7 @@ export function DashboardView() {
           coverage={coverageFor(data, "workplace")}
           open={opened("workplace", coverageFor(data, "workplace").imported > 0)}
           onToggle={() => toggle("workplace", coverageFor(data, "workplace").imported > 0)}
+          onDiscuss={() => setDiscuss("workplace")}
         >
           {data.production.length ? (
             <Panel
@@ -294,6 +318,7 @@ export function DashboardView() {
               nested
               open={opened("workplace-chart", true)}
               onToggle={() => toggle("workplace-chart", true)}
+              onDiscuss={() => setDiscuss("workplace-chart")}
             >
               <ProductionChart data={data.production} />
             </Panel>
@@ -308,12 +333,21 @@ export function DashboardView() {
           coverage={coverageFor(data, "financial")}
           open={opened("financial", coverageFor(data, "financial").imported > 0)}
           onToggle={() => toggle("financial", coverageFor(data, "financial").imported > 0)}
+          onDiscuss={() => setDiscuss("financial")}
         >
           <KpiGrid kpis={kpisFor(data, FINANCIAL_KPIS)} />
           <AttentionList items={data.attention.filter((item) => /net income/i.test(item.title))} />
           {data.financial.length ? (
-            <div className="mt-4 overflow-x-auto">
-              <SectionTitle title="P&L by month" detail="Financial file only. Not added on top of Celerant revenue." />
+            <div className="mt-4">
+              <Panel
+                title="P&L by month"
+                detail="Financial file only. Not added on top of Celerant revenue."
+                nested
+                open={opened("financial-pl", true)}
+                onToggle={() => toggle("financial-pl", true)}
+                onDiscuss={() => setDiscuss("financial-pl")}
+              >
+              <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
                 <thead className="text-xs uppercase tracking-wider text-muted">
                   <tr>
@@ -333,6 +367,8 @@ export function DashboardView() {
                   ))}
                 </tbody>
               </table>
+              </div>
+              </Panel>
             </div>
           ) : null}
         </SourceBlock>
@@ -343,6 +379,7 @@ export function DashboardView() {
           coverage={coverageFor(data, "other")}
           open={opened("other", coverageFor(data, "other").imported > 0)}
           onToggle={() => toggle("other", coverageFor(data, "other").imported > 0)}
+          onDiscuss={() => setDiscuss("other")}
         >
           {data.otherMetrics.length ? (
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
@@ -366,6 +403,18 @@ export function DashboardView() {
           ))}
         </ul>
       ) : null}
+      {discuss ? (
+        <DiscussChat
+          key={`${discuss}-${filter.from}-${filter.to}`}
+          storeId={storeId}
+          storeName={data.store.name}
+          scope={discuss}
+          from={filter.from}
+          to={filter.to}
+          periodLabel={data.rangeLabel}
+          onClose={() => setDiscuss(null)}
+        />
+      ) : null}
     </div>
   );
 }
@@ -378,6 +427,8 @@ const SECTION_IDS = [
   "celerant-hour",
   "celerant-months",
   "celerant-roundup",
+  "celerant-donors",
+  "celerant-ecomm",
   "adp",
   "adp-labor",
   "upright",
@@ -385,6 +436,7 @@ const SECTION_IDS = [
   "workplace",
   "workplace-chart",
   "financial",
+  "financial-pl",
   "other",
 ];
 
@@ -410,7 +462,112 @@ function hasLastYearRoundup(data: DashboardData) {
 }
 
 function yearsOf(data: DashboardData) {
-  return [...new Set(data.months.map((month) => month.id.slice(0, 4)))].sort();
+  const fromData = data.months.map((month) => month.id.slice(0, 4));
+  const fromFreshness = [data.freshness.periodStart, data.freshness.periodEnd]
+    .filter((value): value is string => Boolean(value))
+    .map((value) => value.slice(0, 4));
+  return [...new Set([...fromData, ...fromFreshness])].sort();
+}
+
+function DateRangeControl({
+  filter,
+  data,
+  onChange,
+}: {
+  filter: { from: string; to: string };
+  data: DashboardData;
+  onChange: (next: { from: string; to: string }) => void;
+}) {
+  const [from, setFrom] = useState(filter.from);
+  const [to, setTo] = useState(filter.to);
+  const presets = rangePresets(data);
+  const invalid = Boolean(from && to && from > to);
+
+  useEffect(() => {
+    setFrom(filter.from);
+    setTo(filter.to);
+  }, [filter.from, filter.to]);
+
+  function apply(nextFrom: string, nextTo: string) {
+    setFrom(nextFrom);
+    setTo(nextTo);
+    if (!nextFrom && !nextTo) {
+      onChange({ from: "", to: "" });
+      return;
+    }
+    if (nextFrom && nextTo && nextFrom <= nextTo) onChange({ from: nextFrom, to: nextTo });
+  }
+
+  return (
+    <div className="mt-4 rounded-xl border border-line bg-white p-4">
+      <div className="flex flex-wrap items-end gap-3">
+        <label className="text-sm">
+          <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted">Start</span>
+          <input
+            type="date"
+            value={from}
+            onChange={(event) => apply(event.target.value, to)}
+            className="rounded-md border border-line bg-white px-3 py-2 text-sm text-ink"
+          />
+        </label>
+        <label className="text-sm">
+          <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted">End</span>
+          <input
+            type="date"
+            value={to}
+            onChange={(event) => apply(from, event.target.value)}
+            className="rounded-md border border-line bg-white px-3 py-2 text-sm text-ink"
+          />
+        </label>
+        {filter.from || filter.to ? (
+          <button type="button" onClick={() => apply("", "")} className="rounded-md border border-line px-3 py-2 text-sm font-semibold">
+            Clear
+          </button>
+        ) : null}
+      </div>
+      {invalid ? <p className="mt-2 text-sm text-bad">Start date needs to be on or before the end date.</p> : null}
+      <div className="mt-3 flex flex-wrap gap-2">
+        {presets.map((preset) => (
+          <FilterChip
+            key={preset.id}
+            label={preset.label}
+            active={filter.from === preset.from && filter.to === preset.to}
+            onClick={() => apply(preset.from, preset.to)}
+          />
+        ))}
+      </div>
+      <p className="mt-3 text-xs text-muted">
+        Pick any start and end date, such as Sep 5 through Oct 28. Year comparison uses the same dates from the prior year when that data is imported.
+      </p>
+    </div>
+  );
+}
+
+function rangePresets(data: DashboardData) {
+  const end = data.freshness.periodEnd;
+  const years = yearsOf(data);
+  const latest = years.at(-1);
+  const previous = latest ? String(Number(latest) - 1) : null;
+  const presets: { id: string; label: string; from: string; to: string }[] = [
+    { id: "all", label: "All imported", from: "", to: "" },
+  ];
+  if (end) {
+    presets.push({ id: "30", label: "Last 30 days", from: shiftDays(end, -29), to: end });
+    presets.push({ id: "90", label: "Last 90 days", from: shiftDays(end, -89), to: end });
+  }
+  if (latest && previous && years.includes(previous)) {
+    const yearEnd = end?.startsWith(latest) ? end : `${latest}-12-31`;
+    presets.push({
+      id: "yoy",
+      label: `${latest} vs ${previous}`,
+      from: `${latest}-01-01`,
+      to: yearEnd,
+    });
+  }
+  for (const year of years) {
+    presets.push({ id: year, label: `${year} year`, from: `${year}-01-01`, to: `${year}-12-31` });
+  }
+  return presets;
 }
 
 function SourceBlock({
@@ -419,6 +576,7 @@ function SourceBlock({
   coverage,
   open,
   onToggle,
+  onDiscuss,
   children,
 }: {
   id: string;
@@ -426,6 +584,7 @@ function SourceBlock({
   coverage: DashboardData["coverage"][number];
   open: boolean;
   onToggle: () => void;
+  onDiscuss?: () => void;
   children: React.ReactNode;
 }) {
   const ready = coverage.imported > 0;
@@ -437,6 +596,7 @@ function SourceBlock({
       muted={!ready}
       open={open}
       onToggle={onToggle}
+      onDiscuss={onDiscuss}
       controls={id}
     >
       {ready ? (
@@ -459,6 +619,7 @@ function Panel({
   detail,
   open,
   onToggle,
+  onDiscuss,
   muted = false,
   nested = false,
   controls,
@@ -470,6 +631,7 @@ function Panel({
   detail?: string;
   open: boolean;
   onToggle: () => void;
+  onDiscuss?: () => void;
   muted?: boolean;
   nested?: boolean;
   controls?: string;
@@ -478,22 +640,39 @@ function Panel({
 }) {
   return (
     <section className={`overflow-hidden rounded-xl border border-line ${nested || muted ? "bg-ice" : "bg-white"} ${className}`}>
-      <button
-        type="button"
-        aria-expanded={open}
-        aria-controls={controls}
-        onClick={onToggle}
-        className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left md:px-5"
-      >
-        <span>
+      <div className="flex items-center justify-between gap-3 px-4 py-3 md:px-5">
+        <button type="button" aria-expanded={open} aria-controls={controls} onClick={onToggle} className="min-w-0 flex-1 text-left">
           {kicker ? <span className={`block text-[11px] font-semibold uppercase tracking-[0.14em] ${muted ? "text-muted" : "text-blue"}`}>{kicker}</span> : null}
           <span className={`block font-semibold ${nested ? "text-lg" : "text-xl"} ${muted ? "text-muted" : "text-ink"}`}>{title}</span>
           {detail ? <span className="mt-0.5 block text-sm text-muted">{detail}</span> : null}
+        </button>
+        <span className="flex shrink-0 items-center gap-2">
+          {onDiscuss ? (
+            nested ? (
+              <button type="button" onClick={onDiscuss} aria-label={`Discuss ${title} with AI`} title="Discuss with AI" className="rounded-md p-1.5 text-blue hover:bg-white">
+                <DiscussIcon />
+              </button>
+            ) : (
+              <button type="button" onClick={onDiscuss} className="rounded-md border border-line bg-white px-3 py-1.5 text-sm font-semibold text-blue">
+                Discuss with AI
+              </button>
+            )
+          ) : null}
+          <button type="button" onClick={onToggle} className="text-sm font-semibold text-blue">
+            {open ? "Hide" : "Show"}
+          </button>
         </span>
-        <span className="shrink-0 text-sm font-semibold text-blue">{open ? "Hide" : "Show"}</span>
-      </button>
+      </div>
       {open ? <div id={controls} className={`border-t border-line px-4 py-4 md:px-5 ${nested ? "bg-white" : ""}`}>{children}</div> : null}
     </section>
+  );
+}
+
+function DiscussIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M5 6.5A2.5 2.5 0 0 1 7.5 4h9A2.5 2.5 0 0 1 19 6.5v7A2.5 2.5 0 0 1 16.5 16H9l-4 3.2V6.5Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+    </svg>
   );
 }
 
@@ -557,6 +736,76 @@ function RoundupReport({ data }: { data: DashboardData }) {
           </table>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function DonorReport({ rows }: { rows: DashboardData["donorRows"] }) {
+  const total = rows.reduce((sum, row) => sum + row.donors, 0);
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-muted">
+        {formatMetric(total, "number")} donors across {rows.length} days.
+      </p>
+      <DonorChart data={rows} />
+      <div className="max-h-96 overflow-auto">
+        <table className="w-full text-left text-sm">
+          <thead className="sticky top-0 bg-white text-xs uppercase tracking-wider text-muted">
+            <tr>
+              {["Date", "Store", "Donors"].map((heading) => (
+                <th key={heading} className="py-2 pr-4 font-semibold">{heading}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.date} className="border-t border-line">
+                <td className="py-2 pr-4 font-medium">{formatDay(row.date)}</td>
+                <td className="py-2 pr-4 tabular-nums">{row.store}</td>
+                <td className="py-2 pr-4 tabular-nums">{formatMetric(row.donors, "number")}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function EcommReport({ rows }: { rows: DashboardData["ecommRows"] }) {
+  const items = rows.reduce((sum, row) => sum + row.totalItemsSold, 0);
+  const revenue = rows.reduce((sum, row) => sum + row.totalItemRevenue, 0);
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-muted">
+        {formatMetric(items, "number")} items sold · {formatCurrency(revenue, 2)} item revenue. Store revenue on this dashboard does not include these sales.
+      </p>
+      <EcommSalesChart data={rows} />
+      <div className="overflow-x-auto">
+        <table className="w-full text-left text-sm">
+          <thead className="text-xs uppercase tracking-wider text-muted">
+            <tr>
+              {["Month", "Source file", "Supplier Name", "Total Items Sold", "Total Item Revenue", "Avg Item Value", "Max Item Value", "Min Item Value"].map((heading) => (
+                <th key={heading} className="py-2 pr-4 font-semibold">{heading}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.sourceFile} className="border-t border-line">
+                <td className="py-2 pr-4 font-medium">{formatMonth(row.month)}</td>
+                <td className="py-2 pr-4">{row.sourceFile}</td>
+                <td className="py-2 pr-4">{row.supplierName}</td>
+                <td className="py-2 pr-4 tabular-nums">{formatMetric(row.totalItemsSold, "number")}</td>
+                <td className="py-2 pr-4 tabular-nums">{formatCurrency(row.totalItemRevenue, 2)}</td>
+                <td className="py-2 pr-4 tabular-nums">{formatCurrency(row.avgItemValue, 2)}</td>
+                <td className="py-2 pr-4 tabular-nums">{formatCurrency(row.maxItemValue, 2)}</td>
+                <td className="py-2 pr-4 tabular-nums">{formatCurrency(row.minItemValue, 2)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

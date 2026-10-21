@@ -119,7 +119,7 @@ export type DashboardData = {
     units: number;
     descriptions: { name: string; revenue: number; units: number }[];
   }[];
-  hours: { hour: number; revenue: number; units: number; transactions: number }[];
+  hours: { hour: number; revenue: number; units: number; transactions: number; receipts: number }[];
   scorecard: {
     id: string;
     label: string;
@@ -141,6 +141,17 @@ export type DashboardData = {
   production: { period: string; racks: number; totes: number; units: number }[];
   financial: { period: string; revenue: number | null; expense: number | null; net: number | null }[];
   otherMetrics: { metric: string; label: string; value: number; demo: boolean }[];
+  donorRows: { date: string; store: string; donors: number }[];
+  ecommRows: {
+    month: string;
+    sourceFile: string;
+    supplierName: string;
+    totalItemsSold: number;
+    totalItemRevenue: number;
+    avgItemValue: number;
+    maxItemValue: number;
+    minItemValue: number;
+  }[];
   monthsTable: {
     month: string;
     label: string;

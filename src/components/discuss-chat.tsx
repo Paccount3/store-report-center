@@ -16,6 +16,7 @@ export function DiscussChat({
   from,
   to,
   periodLabel,
+  monthNote = "",
   onClose,
 }: {
   storeId: string;
@@ -24,6 +25,7 @@ export function DiscussChat({
   from: string;
   to: string;
   periodLabel: string;
+  monthNote?: string;
   onClose: () => void;
 }) {
   const meta = discussScope(scope);
@@ -127,6 +129,7 @@ export function DiscussChat({
               </p>
               <h2 className="mt-1 text-lg font-semibold">{label}</h2>
               <p className="mt-1 text-sm font-medium text-ink">{periodLabel}</p>
+              {monthNote ? <p className="mt-2 text-sm text-muted">{monthNote}</p> : null}
               <p className="mt-1 text-sm text-muted">Focused on {kind}. Replies stay short and use the figures in view.</p>
             </div>
             <button type="button" onClick={onClose} className="rounded-md border border-line px-2 py-1 text-sm">

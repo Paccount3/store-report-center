@@ -1,4 +1,5 @@
 import { buildDashboard } from "./dashboard";
+import { isCompleteMonths, MONTH_SECTION_NOTE } from "./dates";
 import { discussScope } from "./discuss-scopes";
 import type { DashboardData, Store } from "./types";
 
@@ -38,6 +39,8 @@ export function discussSystemPrompt(instruction: string) {
     "Keep the reply short: usually 2 to 5 sentences, or up to 4 short bullets when a list is clearer.",
     "You may use markdown: **bold** for key figures and a short bullet list when it helps. Do not use headings.",
     "Every number you mention must come from the pack, with the metric and the period.",
+    "The period value is the exact date range selected on the dashboard. Use that range whenever you mention dates. Do not widen it to a month, a file date, or any other span.",
+    "If a subsection has a disclaimer that its data is broken down by month, not day, give the user that disclaimer and do not discuss figures for that subsection.",
     "You may end with one follow-up question.",
     "Do not write a summary header, action-step list, findings section, or a long presentation.",
     "Ecommerce revenue is not store revenue.",
@@ -103,11 +106,13 @@ function packFor(scopeId: string, dashboard: DashboardData) {
       };
     case "financial":
     case "financial-pl":
-      return {
-        focus: scopeId === "financial-pl" ? "P&L by month" : undefined,
-        kpis: kpis(dashboard, FINANCIAL_KPIS),
-        months: financial(dashboard),
-      };
+      return isCompleteMonths(dashboard.filter.from, dashboard.filter.to)
+        ? {
+            focus: scopeId === "financial-pl" ? "P&L by month" : undefined,
+            kpis: kpis(dashboard, FINANCIAL_KPIS),
+            months: financial(dashboard),
+          }
+        : { disclaimer: MONTH_SECTION_NOTE };
     case "other":
       return { metrics: dashboard.otherMetrics.map((item) => ({ label: item.label, value: round(item.value, 2) })) };
     default:
@@ -116,15 +121,16 @@ function packFor(scopeId: string, dashboard: DashboardData) {
 }
 
 function celerantSection(dashboard: DashboardData) {
+  const monthly = isCompleteMonths(dashboard.filter.from, dashboard.filter.to);
   return {
     kpis: kpis(dashboard, [...CELERANT_KPIS, "receipts"]),
     revenue: revenueSeries(dashboard),
     departments: departments(dashboard),
     hourOfDay: hourSeries(dashboard),
-    months: months(dashboard),
-    roundup: roundup(dashboard),
+    months: monthly ? months(dashboard) : { disclaimer: MONTH_SECTION_NOTE },
+    roundup: monthly ? roundup(dashboard) : { disclaimer: MONTH_SECTION_NOTE },
     donors: dashboard.donorRows,
-    ecommerceSales: dashboard.ecommRows,
+    ecommerceSales: monthly ? dashboard.ecommRows : { disclaimer: MONTH_SECTION_NOTE },
     notices: dashboard.notices,
   };
 }

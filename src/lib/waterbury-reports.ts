@@ -1,4 +1,4 @@
-import { monthEnd } from "./dates";
+import { isCompleteMonths, monthEnd } from "./dates";
 import { WATERBURY_DONORS, WATERBURY_ECOMM } from "./demo/waterbury-source";
 
 export type DonorRow = {
@@ -29,7 +29,14 @@ export function waterburyDonors(storeCode: string, from?: string | null, to?: st
 
 export function waterburyEcomm(storeCode: string, from?: string | null, to?: string | null): EcommRow[] {
   if (storeCode !== "210") return [];
-  return WATERBURY_ECOMM.filter((row) => overlaps(`${row.month}-01`, monthEnd(`${row.month}-01`), from, to)).map((row) => ({
+  if (!isCompleteMonths(from, to)) return [];
+  return WATERBURY_ECOMM.filter((row) => {
+    const start = `${row.month}-01`;
+    const end = monthEnd(start);
+    if (from && from > start) return false;
+    if (to && to < end) return false;
+    return true;
+  }).map((row) => ({
     month: row.month,
     sourceFile: row.sourceFile,
     supplierName: row.supplierName,

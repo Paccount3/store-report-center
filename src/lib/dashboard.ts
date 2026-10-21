@@ -1,5 +1,5 @@
 import { CATEGORIES, categoryName, metricLabel } from "./catalog";
-import { formatMonth, formatRange, monthEnd, monthKey, shiftDays, shiftYears, weekStart } from "./dates";
+import { formatMonth, formatRange, isCompleteMonths, monthEnd, monthKey, shiftDays, shiftYears, weekStart } from "./dates";
 import { listStores } from "./db";
 import { waterburyDonors, waterburyEcomm } from "./waterbury-reports";
 import { demoDescriptions, demoGrouped } from "./demo/snapshot";
@@ -399,7 +399,8 @@ export function buildDashboard(store: Store, options: Options = {}): DashboardDa
 
   const dates = filtered.map((row) => row.period_date).filter((date): date is string => Boolean(date)).sort();
   const importedDates = allRows.map((row) => row.period_date).filter((date): date is string => Boolean(date)).sort();
-  const rangeLabel = dates.length ? formatRange(dates[0], dates[dates.length - 1]) : "No dated rows";
+  const rangeLabel =
+    options.from && options.to ? formatRange(options.from, options.to) : dates.length ? formatRange(dates[0], dates[dates.length - 1]) : "No dated rows";
   const attention = buildAttention({
     revenue,
     budget,
@@ -995,8 +996,16 @@ function applyFinest(rows: GroupRow[]) {
 function inRange(row: GroupRow, from?: string | null, to?: string | null) {
   if (!from && !to) return true;
   if (!row.period_date) return false;
+  if (row.grain === "month") {
+    if (!isCompleteMonths(from, to)) return false;
+    const start = `${monthKey(row.period_date)}-01`;
+    const end = monthEnd(start);
+    if (from && from > start) return false;
+    if (to && to < end) return false;
+    return true;
+  }
   const start = row.period_date;
-  const end = row.grain === "week" ? shiftDays(start, 6) : row.grain === "month" ? monthEnd(start) : start;
+  const end = row.grain === "week" ? shiftDays(start, 6) : start;
   if (from && end < from) return false;
   if (to && start > to) return false;
   return true;

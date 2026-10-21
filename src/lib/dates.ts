@@ -134,6 +134,15 @@ export function monthBounds(ym: string) {
   return { from: `${ym}-01`, to: monthEnd(`${ym}-01`) };
 }
 
+export const MONTH_SECTION_NOTE =
+  "Data for this section is broken down by month, not day. Change the date range to see this section.";
+
+export function isCompleteMonths(from?: string | null, to?: string | null) {
+  if (!from && !to) return true;
+  if (!from || !to) return false;
+  return from.endsWith("-01") && to === monthEnd(to);
+}
+
 function formatParts(year: number, month: number, day: number) {
   return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }

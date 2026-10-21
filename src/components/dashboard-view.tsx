@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { categoryName } from "@/lib/catalog";
-import { formatDay, formatMonth, shiftDays } from "@/lib/dates";
+import { formatDay, formatMonth, formatRange, isCompleteMonths, MONTH_SECTION_NOTE, shiftDays } from "@/lib/dates";
 import { formatCurrency, formatMetric, formatPercent, formatSignedPercent, formatWhen } from "@/lib/format";
 import type { DashboardData, Kpi } from "@/lib/types";
 import { api } from "./api";
@@ -181,7 +181,9 @@ export function DashboardView() {
               onToggle={() => toggle("celerant-months", true)}
               onDiscuss={() => setDiscuss("celerant-months")}
             >
-              {data.monthsTable.some((month) => month.revenue != null) ? (
+              {!isCompleteMonths(data.filter.from, data.filter.to) ? (
+                <MonthGrainNote />
+              ) : data.monthsTable.some((month) => month.revenue != null) ? (
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-sm">
                     <thead className="text-xs uppercase tracking-wider text-muted">
@@ -216,7 +218,7 @@ export function DashboardView() {
               onToggle={() => toggle("celerant-roundup", true)}
               onDiscuss={() => setDiscuss("celerant-roundup")}
             >
-              <RoundupReport data={data} />
+              {isCompleteMonths(data.filter.from, data.filter.to) ? <RoundupReport data={data} /> : <MonthGrainNote />}
             </Panel>
             <Panel
               title="Donors"
@@ -236,7 +238,13 @@ export function DashboardView() {
               onToggle={() => toggle("celerant-ecomm", true)}
               onDiscuss={() => setDiscuss("celerant-ecomm")}
             >
-              {data.ecommRows.length ? <EcommReport rows={data.ecommRows} /> : <Empty>No ecommerce rows in this period.</Empty>}
+              {!isCompleteMonths(data.filter.from, data.filter.to) ? (
+                <MonthGrainNote />
+              ) : data.ecommRows.length ? (
+                <EcommReport rows={data.ecommRows} />
+              ) : (
+                <Empty>No ecommerce rows in this period.</Empty>
+              )}
             </Panel>
           </div>
         </SourceBlock>
@@ -337,7 +345,20 @@ export function DashboardView() {
         >
           <KpiGrid kpis={kpisFor(data, FINANCIAL_KPIS)} />
           <AttentionList items={data.attention.filter((item) => /net income/i.test(item.title))} />
-          {data.financial.length ? (
+          {!isCompleteMonths(data.filter.from, data.filter.to) && coverageFor(data, "financial").imported > 0 ? (
+            <div className="mt-4">
+              <Panel
+                title="P&L by month"
+                detail="Financial file only. Not added on top of Celerant revenue."
+                nested
+                open={opened("financial-pl", true)}
+                onToggle={() => toggle("financial-pl", true)}
+                onDiscuss={() => setDiscuss("financial-pl")}
+              >
+                <MonthGrainNote />
+              </Panel>
+            </div>
+          ) : data.financial.length ? (
             <div className="mt-4">
               <Panel
                 title="P&L by month"
@@ -411,13 +432,18 @@ export function DashboardView() {
           scope={discuss}
           from={filter.from}
           to={filter.to}
-          periodLabel={data.rangeLabel}
+          periodLabel={filter.from && filter.to ? formatRange(filter.from, filter.to) : data.rangeLabel}
+          monthNote={
+            !isCompleteMonths(filter.from, filter.to) && MONTH_ONLY_SCOPES.has(discuss) ? MONTH_SECTION_NOTE : ""
+          }
           onClose={() => setDiscuss(null)}
         />
       ) : null}
     </div>
   );
 }
+
+const MONTH_ONLY_SCOPES = new Set(["celerant-months", "celerant-roundup", "celerant-ecomm", "financial", "financial-pl"]);
 
 const SECTION_IDS = [
   "scorecard",
@@ -868,6 +894,10 @@ function FilterChip({ label, active, onClick }: { label: string; active: boolean
       {label}
     </button>
   );
+}
+
+function MonthGrainNote() {
+  return <p className="text-sm text-muted">{MONTH_SECTION_NOTE}</p>;
 }
 
 function SectionTitle({ title, detail }: { title: string; detail: string }) {

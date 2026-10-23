@@ -1,5 +1,5 @@
 import OpenAI from "openai";
-import { isPreset } from "@/lib/catalog";
+import { isCategory, isPreset, type CategoryId } from "@/lib/catalog";
 import { getStore } from "@/lib/db";
 import { buildAnalysisContext, insufficientAnalysis, presetInstruction, systemPrompt } from "@/lib/facts";
 import { fail, json, readJson } from "@/lib/http";
@@ -14,18 +14,15 @@ export async function POST(request: Request) {
     const body = await readJson(request);
     const record = body && typeof body === "object" ? (body as Record<string, unknown>) : {};
     const storeId = typeof record.storeId === "string" ? record.storeId : "";
-    const uploadIds = Array.isArray(record.uploadIds) ? record.uploadIds.filter((id): id is string => typeof id === "string") : [];
+    const sections = Array.isArray(record.sections) ? record.sections.filter((id): id is CategoryId => typeof id === "string" && isCategory(id)) : [];
     const preset = typeof record.preset === "string" && isPreset(record.preset) ? record.preset : null;
     const question = typeof record.question === "string" ? record.question.trim().slice(0, 2000) : "";
     const store = getStore(storeId);
     if (!store) return fail("Store not found.", 404);
-    if (!uploadIds.length) return fail("Select at least one imported report.");
+    if (!sections.length) return fail("Select at least one section.");
     if (!preset && !question) return fail("Choose a preset or ask a question.");
 
-    const context = buildAnalysisContext(store, uploadIds);
-    if (context.reportsUsed.length !== uploadIds.length) {
-      return fail("One or more selected reports are not imported for this store.");
-    }
+    const context = buildAnalysisContext(store, sections);
     if (!context.hasNumbers) {
       return json({
         ...insufficientAnalysis(context.reportsUsed, context.calculated),
@@ -48,7 +45,7 @@ export async function POST(request: Request) {
       { role: "system" as const, content: systemPrompt() },
       {
         role: "user" as const,
-        content: `${presetInstruction(preset, question)}\n\nCalculated data:\n${JSON.stringify(context.pack)}`,
+        content: `${presetInstruction(preset, question, context.reportsUsed.map((section) => section.name))}\n\nCalculated data:\n${JSON.stringify(context.pack)}`,
       },
     ];
     let completion;

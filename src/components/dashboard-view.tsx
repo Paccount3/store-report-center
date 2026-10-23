@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { categoryName } from "@/lib/catalog";
 import { formatDay, formatMonth, formatRange, isCompleteMonths, MONTH_SECTION_NOTE, shiftDays } from "@/lib/dates";
 import { formatCurrency, formatMetric, formatPercent, formatSignedPercent, formatWhen } from "@/lib/format";
+import { sourceColor, type SourcePalette } from "@/lib/source-colors";
 import type { DashboardData, Kpi } from "@/lib/types";
 import { api } from "./api";
 import { DepartmentChart, DonorChart, EcommSalesChart, EcommerceChart, HourChart, LaborChart, ProductionChart, RevenueChart } from "./charts";
@@ -113,6 +114,7 @@ export function DashboardView() {
         title="Scorecard"
         kicker="Selected period"
         detail="Each figure is calculated from its own source."
+        accent={sourceColor("celerant")}
         open={opened("scorecard", true)}
         onToggle={() => toggle("scorecard", true)}
         onDiscuss={() => setDiscuss("scorecard")}
@@ -220,32 +222,6 @@ export function DashboardView() {
             >
               {isCompleteMonths(data.filter.from, data.filter.to) ? <RoundupReport data={data} /> : <MonthGrainNote />}
             </Panel>
-            <Panel
-              title="Donors"
-              detail="Donations brought into the store by visitors. Every day from Waterbury Donors.csv."
-              nested
-              open={opened("celerant-donors", true)}
-              onToggle={() => toggle("celerant-donors", true)}
-              onDiscuss={() => setDiscuss("celerant-donors")}
-            >
-              {data.donorRows.length ? <DonorReport rows={data.donorRows} /> : <Empty>No donor rows in this period.</Empty>}
-            </Panel>
-            <Panel
-              title="Ecommerce sales"
-              detail="Celerant ecommerce by month. Kept separate from store revenue. Every column from the monthly files."
-              nested
-              open={opened("celerant-ecomm", true)}
-              onToggle={() => toggle("celerant-ecomm", true)}
-              onDiscuss={() => setDiscuss("celerant-ecomm")}
-            >
-              {!isCompleteMonths(data.filter.from, data.filter.to) ? (
-                <MonthGrainNote />
-              ) : data.ecommRows.length ? (
-                <EcommReport rows={data.ecommRows} />
-              ) : (
-                <Empty>No ecommerce rows in this period.</Empty>
-              )}
-            </Panel>
           </div>
         </SourceBlock>
 
@@ -289,8 +265,9 @@ export function DashboardView() {
           id="upright"
           storeId={storeId}
           coverage={coverageFor(data, "upright")}
-          open={opened("upright", coverageFor(data, "upright").imported > 0)}
-          onToggle={() => toggle("upright", coverageFor(data, "upright").imported > 0)}
+          available={uprightReady(data)}
+          open={opened("upright", uprightReady(data))}
+          onToggle={() => toggle("upright", uprightReady(data))}
           onDiscuss={() => setDiscuss("upright")}
         >
           <KpiGrid kpis={kpisFor(data, UPRIGHT_KPIS)} />
@@ -309,6 +286,24 @@ export function DashboardView() {
               </Panel>
             </div>
           ) : null}
+          <div className={data.ecommerce.length || kpisFor(data, UPRIGHT_KPIS).length ? "mt-4" : ""}>
+            <Panel
+              title="Ecommerce sales"
+              detail="Monthly ecommerce sales. Kept separate from store revenue. Every column from the monthly files."
+              nested
+              open={opened("upright-ecomm", true)}
+              onToggle={() => toggle("upright-ecomm", true)}
+              onDiscuss={() => setDiscuss("upright-ecomm")}
+            >
+              {!isCompleteMonths(data.filter.from, data.filter.to) ? (
+                <MonthGrainNote />
+              ) : data.ecommRows.length ? (
+                <EcommReport rows={data.ecommRows} />
+              ) : (
+                <Empty>No ecommerce rows in this period.</Empty>
+              )}
+            </Panel>
+          </div>
         </SourceBlock>
 
         <SourceBlock
@@ -398,10 +393,12 @@ export function DashboardView() {
           id="other"
           storeId={storeId}
           coverage={coverageFor(data, "other")}
-          open={opened("other", coverageFor(data, "other").imported > 0)}
-          onToggle={() => toggle("other", coverageFor(data, "other").imported > 0)}
+          available={otherReady(data)}
+          open={opened("other", otherReady(data))}
+          onToggle={() => toggle("other", otherReady(data))}
           onDiscuss={() => setDiscuss("other")}
         >
+          <KpiGrid kpis={kpisFor(data, ["donors", "rpd"])} />
           {data.otherMetrics.length ? (
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
               {data.otherMetrics.map((item) => (
@@ -411,9 +408,19 @@ export function DashboardView() {
                 </div>
               ))}
             </div>
-          ) : (
-            <Empty>The manual file did not include numeric metrics for this period.</Empty>
-          )}
+          ) : null}
+          <div className={data.otherMetrics.length || kpisFor(data, ["donors", "rpd"]).length ? "mt-4" : ""}>
+            <Panel
+              title="Donors"
+              detail="Donations brought into the store by visitors. Every day from Waterbury Donors.csv."
+              nested
+              open={opened("other-donors", true)}
+              onToggle={() => toggle("other-donors", true)}
+              onDiscuss={() => setDiscuss("other-donors")}
+            >
+              {data.donorRows.length ? <DonorReport rows={data.donorRows} /> : <Empty>No donor rows in this period.</Empty>}
+            </Panel>
+          </div>
         </SourceBlock>
       </div>
 
@@ -443,7 +450,7 @@ export function DashboardView() {
   );
 }
 
-const MONTH_ONLY_SCOPES = new Set(["celerant-months", "celerant-roundup", "celerant-ecomm", "financial", "financial-pl"]);
+const MONTH_ONLY_SCOPES = new Set(["celerant-months", "celerant-roundup", "upright-ecomm", "financial", "financial-pl"]);
 
 const SECTION_IDS = [
   "scorecard",
@@ -453,20 +460,20 @@ const SECTION_IDS = [
   "celerant-hour",
   "celerant-months",
   "celerant-roundup",
-  "celerant-donors",
-  "celerant-ecomm",
   "adp",
   "adp-labor",
   "upright",
   "upright-chart",
+  "upright-ecomm",
   "workplace",
   "workplace-chart",
   "financial",
   "financial-pl",
   "other",
+  "other-donors",
 ];
 
-const CELERANT_KPIS = ["revenue", "sqft", "asp", "to-budget", "to-ly", "budget", "last-year", "transactions", "rpt", "donors", "rpd", "units"];
+const CELERANT_KPIS = ["revenue", "sqft", "asp", "to-budget", "to-ly", "budget", "last-year", "transactions", "rpt", "units"];
 const ROUNDUP_KPIS = ["roundup", "roundup-pct", "roundup-count"];
 const ADP_KPIS = ["payroll", "labor", "overtime"];
 const UPRIGHT_KPIS = ["ecommerce"];
@@ -474,6 +481,14 @@ const FINANCIAL_KPIS = ["expense", "net"];
 
 function coverageFor(data: DashboardData, category: DashboardData["coverage"][number]["category"]) {
   return data.coverage.find((item) => item.category === category)!;
+}
+
+function uprightReady(data: DashboardData) {
+  return coverageFor(data, "upright").imported > 0 || data.ecommerce.length > 0 || data.ecommRows.length > 0 || !isCompleteMonths(data.filter.from, data.filter.to);
+}
+
+function otherReady(data: DashboardData) {
+  return coverageFor(data, "other").imported > 0 || data.otherMetrics.length > 0 || data.donorRows.length > 0;
 }
 
 function kpisFor(data: DashboardData, ids: string[]) {
@@ -600,6 +615,7 @@ function SourceBlock({
   id,
   storeId,
   coverage,
+  available = false,
   open,
   onToggle,
   onDiscuss,
@@ -608,18 +624,25 @@ function SourceBlock({
   id: string;
   storeId: string;
   coverage: DashboardData["coverage"][number];
+  available?: boolean;
   open: boolean;
   onToggle: () => void;
   onDiscuss?: () => void;
   children: React.ReactNode;
 }) {
-  const ready = coverage.imported > 0;
+  const ready = coverage.imported > 0 || available;
+  const detail = !ready
+    ? "No data"
+    : coverage.imported > 0
+      ? `${coverage.imported} file${coverage.imported === 1 ? "" : "s"} · Updated ${formatWhen(coverage.lastImportedAt)}`
+      : "Included with this store";
   return (
     <Panel
       title={categoryName(coverage.category)}
       kicker="Report source"
-      detail={ready ? `${coverage.imported} file${coverage.imported === 1 ? "" : "s"} · Updated ${formatWhen(coverage.lastImportedAt)}` : "No data"}
+      detail={detail}
       muted={!ready}
+      accent={sourceColor(coverage.category)}
       open={open}
       onToggle={onToggle}
       onDiscuss={onDiscuss}
@@ -648,6 +671,7 @@ function Panel({
   onDiscuss,
   muted = false,
   nested = false,
+  accent = null,
   controls,
   className = "",
   children,
@@ -660,17 +684,27 @@ function Panel({
   onDiscuss?: () => void;
   muted?: boolean;
   nested?: boolean;
+  accent?: SourcePalette | null;
   controls?: string;
   className?: string;
   children: React.ReactNode;
 }) {
+  const colored = Boolean(accent) && !nested;
   return (
-    <section className={`overflow-hidden rounded-xl border border-line ${nested || muted ? "bg-ice" : "bg-white"} ${className}`}>
-      <div className="flex items-center justify-between gap-3 px-4 py-3 md:px-5">
+    <section
+      className={`overflow-hidden rounded-xl border ${colored ? "" : "border-line"} ${nested || muted ? "bg-ice" : "bg-white"} ${className}`}
+      style={colored && accent ? { borderColor: accent.soft } : undefined}
+    >
+      <div
+        className="flex items-center justify-between gap-3 px-4 py-3 md:px-5"
+        style={colored && accent ? { background: accent.main, color: "#fff" } : undefined}
+      >
         <button type="button" aria-expanded={open} aria-controls={controls} onClick={onToggle} className="min-w-0 flex-1 text-left">
-          {kicker ? <span className={`block text-[11px] font-semibold uppercase tracking-[0.14em] ${muted ? "text-muted" : "text-blue"}`}>{kicker}</span> : null}
-          <span className={`block font-semibold ${nested ? "text-lg" : "text-xl"} ${muted ? "text-muted" : "text-ink"}`}>{title}</span>
-          {detail ? <span className="mt-0.5 block text-sm text-muted">{detail}</span> : null}
+          {kicker ? (
+            <span className={`block text-[11px] font-semibold uppercase tracking-[0.14em] ${colored ? "text-white/80" : muted ? "text-muted" : "text-blue"}`}>{kicker}</span>
+          ) : null}
+          <span className={`block font-semibold ${nested ? "text-lg" : "text-xl"} ${colored ? "text-white" : muted ? "text-muted" : "text-ink"}`}>{title}</span>
+          {detail ? <span className={`mt-0.5 block text-sm ${colored ? "text-white/80" : "text-muted"}`}>{detail}</span> : null}
         </button>
         <span className="flex shrink-0 items-center gap-2">
           {onDiscuss ? (
@@ -679,12 +713,16 @@ function Panel({
                 <DiscussIcon />
               </button>
             ) : (
-              <button type="button" onClick={onDiscuss} className="rounded-md border border-line bg-white px-3 py-1.5 text-sm font-semibold text-blue">
+              <button
+                type="button"
+                onClick={onDiscuss}
+                className={`rounded-md px-3 py-1.5 text-sm font-semibold ${colored ? "border border-white/50 bg-white/10 text-white" : "border border-line bg-white text-blue"}`}
+              >
                 Discuss with AI
               </button>
             )
           ) : null}
-          <button type="button" onClick={onToggle} className="text-sm font-semibold text-blue">
+          <button type="button" onClick={onToggle} className={`text-sm font-semibold ${colored ? "text-white" : "text-blue"}`}>
             {open ? "Hide" : "Show"}
           </button>
         </span>
@@ -811,16 +849,15 @@ function EcommReport({ rows }: { rows: DashboardData["ecommRows"] }) {
         <table className="w-full text-left text-sm">
           <thead className="text-xs uppercase tracking-wider text-muted">
             <tr>
-              {["Month", "Source file", "Supplier Name", "Total Items Sold", "Total Item Revenue", "Avg Item Value", "Max Item Value", "Min Item Value"].map((heading) => (
+              {["Month", "Supplier Name", "Total Items Sold", "Total Item Revenue", "Avg Item Value", "Max Item Value", "Min Item Value"].map((heading) => (
                 <th key={heading} className="py-2 pr-4 font-semibold">{heading}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {rows.map((row) => (
-              <tr key={row.sourceFile} className="border-t border-line">
+              <tr key={`${row.month}-${row.supplierName}`} className="border-t border-line">
                 <td className="py-2 pr-4 font-medium">{formatMonth(row.month)}</td>
-                <td className="py-2 pr-4">{row.sourceFile}</td>
                 <td className="py-2 pr-4">{row.supplierName}</td>
                 <td className="py-2 pr-4 tabular-nums">{formatMetric(row.totalItemsSold, "number")}</td>
                 <td className="py-2 pr-4 tabular-nums">{formatCurrency(row.totalItemRevenue, 2)}</td>

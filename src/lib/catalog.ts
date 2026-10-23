@@ -2,11 +2,11 @@ export const CATEGORIES = [
   {
     id: "celerant",
     name: "Celerant Reporting",
-    blurb: "Sales, budgets, transactions, donors, departments, and hourly performance.",
+    blurb: "Sales, budgets, transactions, departments, and hourly performance.",
     examples: [
       "Daily, monthly, and yearly revenue",
       "Revenue compared with budget and last year",
-      "Transactions, donors, and round-up donations",
+      "Transactions and round-up donations",
       "Department sales, units, and hourly activity",
     ],
   },
@@ -20,7 +20,7 @@ export const CATEGORIES = [
     id: "upright",
     name: "Upright Labs Reporting",
     blurb: "Ecommerce items sent, items sold, revenue, and goals.",
-    examples: ["Items sent and sold", "Ecommerce revenue", "Performance against goals"],
+    examples: ["Items sent and sold", "Ecommerce revenue by month", "Performance against goals"],
   },
   {
     id: "workplace",

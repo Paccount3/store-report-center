@@ -39,7 +39,7 @@ export function analysisWriteUp(result: AnalysisResult) {
   }
 
   if (result.reportsUsed.length) {
-    lines.push("", `Reports used: ${result.reportsUsed.map((report) => report.name).join(", ")}`);
+    lines.push("", `Sections included: ${result.reportsUsed.map((report) => report.name).join(", ")}`);
   }
 
   if (result.model) lines.push("", `Model: ${result.model}`);

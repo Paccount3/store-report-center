@@ -3,7 +3,7 @@ import { isCompleteMonths, MONTH_SECTION_NOTE } from "./dates";
 import { discussScope } from "./discuss-scopes";
 import type { DashboardData, Store } from "./types";
 
-const CELERANT_KPIS = ["revenue", "sqft", "asp", "to-budget", "to-ly", "budget", "last-year", "transactions", "rpt", "donors", "rpd", "units"];
+const CELERANT_KPIS = ["revenue", "sqft", "asp", "to-budget", "to-ly", "budget", "last-year", "transactions", "rpt", "units"];
 const ROUNDUP_KPIS = ["roundup", "roundup-pct", "roundup-count"];
 const ADP_KPIS = ["payroll", "labor", "overtime"];
 const UPRIGHT_KPIS = ["ecommerce"];
@@ -68,10 +68,6 @@ function packFor(scopeId: string, dashboard: DashboardData) {
       return { focus: "By month", ...celerantSection(dashboard) };
     case "celerant-roundup":
       return { focus: "Round-up", ...celerantSection(dashboard) };
-    case "celerant-donors":
-      return { focus: "Donors", ...celerantSection(dashboard) };
-    case "celerant-ecomm":
-      return { focus: "Ecommerce sales", ...celerantSection(dashboard) };
     case "adp":
     case "adp-labor":
       return {
@@ -82,8 +78,9 @@ function packFor(scopeId: string, dashboard: DashboardData) {
       };
     case "upright":
     case "upright-chart":
+    case "upright-ecomm":
       return {
-        focus: scopeId === "upright-chart" ? "Ecommerce" : undefined,
+        focus: scopeId === "upright-chart" ? "Ecommerce" : scopeId === "upright-ecomm" ? "Ecommerce sales" : undefined,
         kpis: kpis(dashboard, UPRIGHT_KPIS),
         ecommerce: dashboard.ecommerce.map((item) => ({
           weekOf: item.period,
@@ -92,6 +89,9 @@ function packFor(scopeId: string, dashboard: DashboardData) {
           revenue: round(item.revenue),
           goal: item.goal == null ? null : round(item.goal),
         })),
+        ecommerceSales: isCompleteMonths(dashboard.filter.from, dashboard.filter.to)
+          ? dashboard.ecommRows
+          : { disclaimer: MONTH_SECTION_NOTE },
       };
     case "workplace":
     case "workplace-chart":
@@ -114,7 +114,13 @@ function packFor(scopeId: string, dashboard: DashboardData) {
           }
         : { disclaimer: MONTH_SECTION_NOTE };
     case "other":
-      return { metrics: dashboard.otherMetrics.map((item) => ({ label: item.label, value: round(item.value, 2) })) };
+    case "other-donors":
+      return {
+        focus: scopeId === "other-donors" ? "Donors" : undefined,
+        kpis: kpis(dashboard, ["donors", "rpd"]),
+        metrics: dashboard.otherMetrics.map((item) => ({ label: item.label, value: round(item.value, 2) })),
+        donors: dashboard.donorRows,
+      };
     default:
       return {};
   }
@@ -129,8 +135,6 @@ function celerantSection(dashboard: DashboardData) {
     hourOfDay: hourSeries(dashboard),
     months: monthly ? months(dashboard) : { disclaimer: MONTH_SECTION_NOTE },
     roundup: monthly ? roundup(dashboard) : { disclaimer: MONTH_SECTION_NOTE },
-    donors: dashboard.donorRows,
-    ecommerceSales: monthly ? dashboard.ecommRows : { disclaimer: MONTH_SECTION_NOTE },
     notices: dashboard.notices,
   };
 }

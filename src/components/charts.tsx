@@ -15,6 +15,7 @@ import {
 } from "recharts";
 import { formatDay, formatMonth } from "@/lib/dates";
 import { formatCurrency, formatHour, formatNumber, formatPercent } from "@/lib/format";
+import { SOURCE_COLORS } from "@/lib/source-colors";
 import type { DashboardData } from "@/lib/types";
 
 const axis = { fontSize: 12, fill: "#5c6d7e" };
@@ -35,8 +36,8 @@ export function RevenueChart({ data }: { data: DashboardData["revenueSeries"] })
           <YAxis tick={axis} tickFormatter={(value) => formatCurrency(Number(value)).replace(".00", "")} width={72} />
           <Tooltip formatter={(value, name) => [formatCurrency(Number(value ?? 0)), name]} />
           <Legend />
-          <Line type="monotone" dataKey="revenue" name="Revenue" stroke="#0c5eae" strokeWidth={2.4} dot={false} />
-          {hasBudget ? <Line type="monotone" dataKey="budget" name="Budget" stroke="#7aa6d4" strokeDasharray="5 4" dot={false} /> : null}
+          <Line type="monotone" dataKey="revenue" name="Revenue" stroke={SOURCE_COLORS.celerant.main} strokeWidth={2.4} dot={false} />
+          {hasBudget ? <Line type="monotone" dataKey="budget" name="Budget" stroke={SOURCE_COLORS.celerant.soft} strokeDasharray="5 4" dot={false} /> : null}
           {hasLastYear ? <Line type="monotone" dataKey="lastYear" name="Last year" stroke="#8b97a3" strokeDasharray="2 3" dot={false} /> : null}
         </ComposedChart>
       </ResponsiveContainer>
@@ -67,7 +68,7 @@ export function DepartmentChart({ data }: { data: DashboardData["departments"] }
             <XAxis type="number" tick={axis} tickFormatter={(value) => formatCurrency(Number(value))} />
             <YAxis type="category" dataKey="name" width={128} tick={axis} />
             <Tooltip formatter={(value) => formatCurrency(Number(value ?? 0))} />
-            <Bar dataKey="revenue" name="Revenue" fill="#0c5eae" radius={[0, 4, 4, 0]} cursor="pointer" />
+            <Bar dataKey="revenue" name="Revenue" fill={SOURCE_COLORS.celerant.main} radius={[0, 4, 4, 0]} cursor="pointer" />
           </BarChart>
         </ResponsiveContainer>
       </div>
@@ -95,8 +96,8 @@ export function DepartmentChart({ data }: { data: DashboardData["departments"] }
                       <span className="block text-sm font-semibold">{department.name}</span>
                       <span className="mt-1 block h-1.5 overflow-hidden rounded-full bg-line">
                         <span
-                          className="block h-full rounded-full bg-blue"
-                          style={{ width: `${Math.max(4, (department.revenue / maxRevenue) * 100)}%` }}
+                          className="block h-full rounded-full"
+                          style={{ width: `${Math.max(4, (department.revenue / maxRevenue) * 100)}%`, background: SOURCE_COLORS.celerant.main }}
                         />
                       </span>
                     </span>
@@ -148,10 +149,10 @@ export function HourChart({ data }: { data: DashboardData["hours"] }) {
             }}
           />
           <Legend />
-          <Bar yAxisId="left" dataKey="revenue" name="Revenue" fill="#1d74c7" radius={[4, 4, 0, 0]} />
-          {hasUnits ? <Line yAxisId="right" type="monotone" dataKey="units" name="Units" stroke="#06284a" dot={false} /> : null}
-          {hasTransactions ? <Line yAxisId="right" type="monotone" dataKey="transactions" name="Transactions" stroke="#7aa6d4" dot={false} /> : null}
-          {!hasTransactions && hasReceipts ? <Line yAxisId="right" type="monotone" dataKey="receipts" name="Receipt lines" stroke="#7aa6d4" dot={false} /> : null}
+          <Bar yAxisId="left" dataKey="revenue" name="Revenue" fill={SOURCE_COLORS.celerant.main} radius={[4, 4, 0, 0]} />
+          {hasUnits ? <Line yAxisId="right" type="monotone" dataKey="units" name="Units" stroke={SOURCE_COLORS.celerant.deep} dot={false} /> : null}
+          {hasTransactions ? <Line yAxisId="right" type="monotone" dataKey="transactions" name="Transactions" stroke={SOURCE_COLORS.celerant.soft} dot={false} /> : null}
+          {!hasTransactions && hasReceipts ? <Line yAxisId="right" type="monotone" dataKey="receipts" name="Receipt lines" stroke={SOURCE_COLORS.celerant.soft} dot={false} /> : null}
         </ComposedChart>
       </ResponsiveContainer>
     </div>
@@ -179,7 +180,7 @@ export function LaborChart({ data }: { data: DashboardData["labor"] }) {
             }}
           />
           <Legend />
-          <Bar yAxisId="left" dataKey="laborPercent" name="Labor %" fill="#0c5eae" radius={[4, 4, 0, 0]} />
+          <Bar yAxisId="left" dataKey="laborPercent" name="Labor %" fill={SOURCE_COLORS.adp.main} radius={[4, 4, 0, 0]} />
           <Line yAxisId="right" type="monotone" dataKey="revenue" name="Revenue" stroke="#8b97a3" dot={false} />
         </ComposedChart>
       </ResponsiveContainer>
@@ -198,8 +199,8 @@ export function EcommerceChart({ data }: { data: DashboardData["ecommerce"] }) {
           <YAxis tick={axis} tickFormatter={(value) => formatCurrency(Number(value))} width={72} />
           <Tooltip formatter={(value, name) => (name === "Items sold" || name === "Items sent" ? formatNumber(Number(value ?? 0)) : formatCurrency(Number(value ?? 0)))} />
           <Legend />
-          <Line type="monotone" dataKey="revenue" name="Ecommerce revenue" stroke="#0c5eae" dot={false} />
-          <Line type="monotone" dataKey="goal" name="Goal" stroke="#7aa6d4" strokeDasharray="5 4" dot={false} />
+          <Line type="monotone" dataKey="revenue" name="Ecommerce revenue" stroke={SOURCE_COLORS.upright.main} dot={false} />
+          <Line type="monotone" dataKey="goal" name="Goal" stroke={SOURCE_COLORS.upright.soft} strokeDasharray="5 4" dot={false} />
         </ComposedChart>
       </ResponsiveContainer>
     </div>
@@ -216,7 +217,7 @@ export function DonorChart({ data }: { data: DashboardData["donorRows"] }) {
           <XAxis dataKey="label" tick={axis} minTickGap={24} />
           <YAxis tick={axis} width={48} />
           <Tooltip formatter={(value) => [formatNumber(Number(value ?? 0)), "Donors"]} />
-          <Line type="monotone" dataKey="donors" name="Donors" stroke="#0c5eae" strokeWidth={2} dot={false} />
+          <Line type="monotone" dataKey="donors" name="Donors" stroke={SOURCE_COLORS.other.main} strokeWidth={2} dot={false} />
         </ComposedChart>
       </ResponsiveContainer>
     </div>
@@ -240,8 +241,8 @@ export function EcommSalesChart({ data }: { data: DashboardData["ecommRows"] }) 
             }}
           />
           <Legend />
-          <Bar yAxisId="left" dataKey="totalItemRevenue" name="Item revenue" fill="#0c5eae" radius={[4, 4, 0, 0]} />
-          <Line yAxisId="right" type="monotone" dataKey="totalItemsSold" name="Items sold" stroke="#06284a" dot />
+          <Bar yAxisId="left" dataKey="totalItemRevenue" name="Item revenue" fill={SOURCE_COLORS.upright.main} radius={[4, 4, 0, 0]} />
+          <Line yAxisId="right" type="monotone" dataKey="totalItemsSold" name="Items sold" stroke={SOURCE_COLORS.upright.deep} dot />
         </ComposedChart>
       </ResponsiveContainer>
     </div>
@@ -259,8 +260,8 @@ export function ProductionChart({ data }: { data: DashboardData["production"] })
           <YAxis tick={axis} />
           <Tooltip />
           <Legend />
-          <Bar dataKey="racks" name="Racks" fill="#0c5eae" />
-          <Bar dataKey="totes" name="Totes" fill="#7aa6d4" />
+          <Bar dataKey="racks" name="Racks" fill={SOURCE_COLORS.workplace.main} />
+          <Bar dataKey="totes" name="Totes" fill={SOURCE_COLORS.workplace.soft} />
         </BarChart>
       </ResponsiveContainer>
     </div>
